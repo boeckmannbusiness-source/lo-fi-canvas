@@ -36,7 +36,7 @@ function makeTiles() {
     cx.putImageData(img, 0, 0);
     tileFrames.push(c);
   }
-  tile = tileFrames[0];
+  tile = tileFrames[0] ?? null;
 }
 
 /** Subtle animated analog film grain. */

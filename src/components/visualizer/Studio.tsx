@@ -38,7 +38,7 @@ const fmt = (s: number) => {
 
 export function Studio() {
   const [settings, setSettings] = useState<Settings>(() =>
-    presets[0].apply(defaultSettings()),
+    presets[0]!.apply(defaultSettings()),
   );
   const [presetId, setPresetId] = useState("tokyo-night");
 
@@ -205,7 +205,7 @@ export function Studio() {
     if (el) el.volume = muted ? 0 : volume;
   }, [volume, muted]);
 
-  const getTime = useCallback(() => time, [time]);
+  
   const timeRef = useRef(time);
   timeRef.current = time;
   const getTimeStable = useCallback(() => timeRef.current, []);
@@ -398,7 +398,7 @@ export function Studio() {
                 min={0}
                 max={duration || 300}
                 step={0.01}
-                onValueChange={([v]) => seek(v)}
+                onValueChange={([v]) => seek(v ?? 0)}
               />
               <span className="w-12 text-right font-mono text-[11px] text-muted-foreground">
                 {fmt(duration)}
@@ -418,7 +418,7 @@ export function Studio() {
                 max={1}
                 step={0.01}
                 onValueChange={([v]) => {
-                  setVolume(v);
+                  setVolume(v ?? 0);
                   setMuted(false);
                 }}
               />
@@ -478,8 +478,6 @@ export function Studio() {
           </div>
         </div>
       )}
-      {/* keeps getTime referenced for lint clarity */}
-      <span className="hidden">{getTime.name}</span>
     </div>
   );
 }

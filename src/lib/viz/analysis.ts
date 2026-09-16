@@ -36,7 +36,7 @@ export async function analyzeBuffer(
   const mono = new Float32Array(length);
   for (let c = 0; c < chCount; c++) {
     const data = buffer.getChannelData(c);
-    for (let i = 0; i < length; i++) mono[i] += data[i] / chCount;
+    for (let i = 0; i < length; i++) mono[i]! += data[i]! / chCount;
   }
 
   const frames = Math.max(1, Math.ceil(buffer.duration * ANALYSIS_FPS));
@@ -69,12 +69,12 @@ export async function analyzeBuffer(
     const start = center - FFT_SIZE / 2;
     for (let i = 0; i < FFT_SIZE; i++) {
       const idx = start + i;
-      window[i] = idx >= 0 && idx < length ? mono[idx] : 0;
+      window[i] = idx >= 0 && idx < length ? mono[idx]! : 0;
     }
     fftMagnitudes(window, mags);
 
     let rms = 0;
-    for (let i = 0; i < FFT_SIZE; i++) rms += window[i] * window[i];
+    for (let i = 0; i < FFT_SIZE; i++) rms += window[i]! * window[i]!;
     rms = Math.sqrt(rms / FFT_SIZE) * 2.2;
 
     let bass = 0;
@@ -85,7 +85,7 @@ export async function analyzeBuffer(
     let trebleN = 0;
     for (let i = 1; i < mags.length; i++) {
       const hz = i * binHz;
-      const v = mags[i];
+      const v = mags[i]!;
       if (hz < 160) {
         bass += v;
         bassN++;
@@ -118,10 +118,10 @@ export async function analyzeBuffer(
         Math.floor(Math.pow((b + 1) / BINS, 2.2) * (mags.length - 2)) + 1,
       );
       let sum = 0;
-      for (let i = lo; i < hi; i++) sum += mags[i];
+      for (let i = lo; i < hi; i++) sum += mags[i]!;
       const v = Math.min(1, (sum / (hi - lo)) * (30 + b * 2.2));
-      prevSpec[b] = prevSpec[b] * 0.6 + v * 0.4;
-      res.spectrum[f * BINS + b] = prevSpec[b];
+      prevSpec[b] = prevSpec[b]! * 0.6 + v * 0.4;
+      res.spectrum[f * BINS + b] = prevSpec[b]!;
     }
 
     // downsampled waveform
@@ -129,7 +129,7 @@ export async function analyzeBuffer(
     for (let w = 0; w < WAVE; w++) {
       const idx = start + w * step;
       res.waveform[f * WAVE + w] =
-        idx >= 0 && idx < length ? Math.max(-1, Math.min(1, mono[idx])) : 0;
+        idx >= 0 && idx < length ? Math.max(-1, Math.min(1, mono[idx]!)) : 0;
     }
 
     if (onProgress && f % 200 === 0) {
@@ -161,10 +161,10 @@ export function frameAt(analysis: AudioAnalysis | null, time: number): AudioFram
     0,
     Math.min(analysis.frames - 1, Math.round(time * analysis.fps)),
   );
-  scratch.rms = analysis.rms[i];
-  scratch.bass = analysis.bass[i];
-  scratch.mid = analysis.mid[i];
-  scratch.treble = analysis.treble[i];
+  scratch.rms = analysis.rms[i]!;
+  scratch.bass = analysis.bass[i]!;
+  scratch.mid = analysis.mid[i]!;
+  scratch.treble = analysis.treble[i]!;
   scratch.spectrum.set(analysis.spectrum.subarray(i * BINS, i * BINS + BINS));
   scratch.waveform.set(analysis.waveform.subarray(i * WAVE, i * WAVE + WAVE));
   return scratch;
