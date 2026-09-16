@@ -26,7 +26,7 @@ export function drawVisualizer(r: RenderContext) {
     ctx.beginPath();
     for (let i = 0; i < data.length; i++) {
       const x = cx - w / 2 + (i / (data.length - 1)) * w;
-      const y = cy + data[i] * h * 0.5 * gain;
+      const y = cy + data[i]! * h * 0.5 * gain;
       if (i === 0) ctx.moveTo(x, y);
       else ctx.lineTo(x, y);
     }
@@ -37,7 +37,7 @@ export function drawVisualizer(r: RenderContext) {
     ctx.moveTo(cx - w / 2, cy);
     for (let i = 0; i < data.length; i++) {
       const x = cx - w / 2 + (i / (data.length - 1)) * w;
-      const y = cy - Math.min(1, data[i] * gain) * h;
+      const y = cy - Math.min(1, data[i]! * gain) * h;
       ctx.lineTo(x, y);
     }
     ctx.lineTo(cx + w / 2, cy);
@@ -51,7 +51,7 @@ export function drawVisualizer(r: RenderContext) {
     const gap = w / bars;
     const bw = Math.max(1, gap * 0.35);
     for (let i = 0; i < bars; i++) {
-      const val = Math.min(1, data[Math.floor((i / bars) * data.length)] * gain);
+      const val = Math.min(1, data[Math.floor((i / bars) * data.length)]! * gain);
       const bh = Math.max(1, val * h);
       const x = cx - w / 2 + i * gap + gap / 2 - bw / 2;
       ctx.fillRect(x, cy - bh / 2, bw, bh);

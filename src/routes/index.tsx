@@ -1,24 +1,42 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { ClientOnly } from "@tanstack/react-router";
+import { Studio } from "@/components/visualizer/Studio";
 
-// No head() here: the home route inherits title/description/og/twitter from
-// __root.tsx, and ships no og:image so serve-time hosting can inject the
-// project's social preview (explicit og:image or latest screenshot).
 export const Route = createFileRoute("/")({
+  head: () => ({
+    meta: [
+      { title: "Lo-Fi Visualizer — Turn artwork + a track into a 1080p MP4" },
+      {
+        name: "description",
+        content:
+          "Browser-based lo-fi music visualizer: spinning vinyl, film grain, rain and dust over your artwork, exported as a 1920x1080 MP4 with your audio.",
+      },
+      {
+        property: "og:title",
+        content: "Lo-Fi Visualizer — artwork + audio to 1080p MP4",
+      },
+      {
+        property: "og:description",
+        content:
+          "Calm, cinematic lo-fi visuals rendered entirely in your browser. Nothing is uploaded.",
+      },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
+    ],
+  }),
   component: Index,
 });
 
-// IMPORTANT: Replace this placeholder. See ./README.md for routing conventions.
 function Index() {
   return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
+    <ClientOnly
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-background text-xs text-muted-foreground">
+          Loading studio…
+        </div>
+      }
     >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
-      />
-    </div>
+      <Studio />
+    </ClientOnly>
   );
 }

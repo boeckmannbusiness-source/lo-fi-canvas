@@ -27,47 +27,128 @@ export function isExportSupported(): boolean {
   );
 }
 
-/** Frame-by-frame offline render to an H.264 + AAC MP4, fully client-side. */
+async function pickVideoCodec(width: number, height: number, fps: number) {
+  const candidates: { codec: string; muxer: "avc" | "vp9" | "av1" }[] = [
+    { codec: "avc1.640028", muxer: "avc" },
+    { codec: "avc1.42001f", muxer: "avc" },
+    { codec: "vp09.00.10.08", muxer: "vp9" },
+    { codec: "av01.0.08M.08", muxer: "av1" },
+  ];
+  for (const c of candidates) {
+    try {
+      const res = await VideoEncoder.isConfigSupported({
+        codec: c.codec,
+        width,
+        height,
+        bitrate: 8_000_000,
+        framerate: fps,
+      });
+      if (res.supported) return c;
+    } catch {
+      /* try next */
+    }
+  }
+  return null;
+}
+
+async function pickAudioCodec(sampleRate: number, channels: number) {
+  const candidates: { codec: string; muxer: "aac" | "opus" }[] = [
+    { codec: "mp4a.40.2", muxer: "aac" },
+    { codec: "opus", muxer: "opus" },
+  ];
+  for (const c of candidates) {
+    // isConfigSupported is optimistic in some browsers, so do a real probe.
+    try {
+      let failed = false;
+      let chunks = 0;
+      const enc = new AudioEncoder({
+        output: () => {
+          chunks++;
+        },
+        error: () => {
+          failed = true;
+        },
+      });
+      enc.configure({
+        codec: c.codec,
+        sampleRate,
+        numberOfChannels: channels,
+        bitrate: 192_000,
+      });
+      const n = 1024;
+      const probe = new AudioData({
+        format: "f32-planar",
+        sampleRate,
+        numberOfFrames: n,
+        numberOfChannels: channels,
+        timestamp: 0,
+        data: new Float32Array(n * channels),
+      });
+      enc.encode(probe);
+      probe.close();
+      await enc.flush();
+      enc.close();
+      if (!failed && chunks > 0) return c;
+    } catch {
+      /* try next */
+    }
+  }
+  return null;
+}
+
+/** Frame-by-frame offline render to an MP4 (H.264 + AAC when available). */
 export async function renderVideo(opts: ExportOptions): Promise<Blob> {
   const { width, height, fps, duration, signal } = opts;
   const totalFrames = Math.max(1, Math.round(duration * fps));
-  const hasAudio = !!opts.audioBuffer;
+
+  const videoCodec = await pickVideoCodec(width, height, fps);
+  if (!videoCodec) throw new Error("No supported video encoder in this browser.");
+
+  const channels = opts.audioBuffer
+    ? Math.min(2, opts.audioBuffer.numberOfChannels)
+    : 0;
+  const audioCodec = opts.audioBuffer
+    ? await pickAudioCodec(opts.audioBuffer.sampleRate, channels)
+    : null;
+  const hasAudio = !!opts.audioBuffer && !!audioCodec;
 
   const target = new ArrayBufferTarget();
   const muxer = new Muxer({
     target,
     fastStart: "in-memory",
-    video: { codec: "avc", width, height },
+    video: { codec: videoCodec.muxer, width, height },
     ...(hasAudio
       ? {
           audio: {
-            codec: "aac" as const,
+            codec: audioCodec!.muxer,
             sampleRate: opts.audioBuffer!.sampleRate,
-            numberOfChannels: Math.min(2, opts.audioBuffer!.numberOfChannels),
+            numberOfChannels: channels,
           },
         }
       : {}),
   });
 
+  let encoderError: Error | null = null;
   const videoEncoder = new VideoEncoder({
     output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
     error: (e) => {
-      throw e;
+      encoderError = e as Error;
     },
   });
   videoEncoder.configure({
-    codec: "avc1.640028",
+    codec: videoCodec.codec,
     width,
     height,
     bitrate: 8_000_000,
     framerate: fps,
-    avc: { format: "avc" },
+    ...(videoCodec.muxer === "avc" ? { avc: { format: "avc" as const } } : {}),
   });
 
   const canvas = new OffscreenCanvas(width, height);
   const ctx = canvas.getContext("2d", { alpha: false })!;
 
   for (let i = 0; i < totalFrames; i++) {
+    if (encoderError) throw encoderError;
     if (signal?.aborted) {
       videoEncoder.close();
       throw new DOMException("Export cancelled", "AbortError");
@@ -155,7 +236,7 @@ async function encodeAudio(
     }
     const n = Math.min(chunkFrames, total - offset);
     for (let c = 0; c < channels; c++) {
-      data.set(chans[c].subarray(offset, offset + n), c * n);
+      data.set(chans[c]!.subarray(offset, offset + n), c * n);
     }
     const audioData = new AudioData({
       format: "f32-planar",

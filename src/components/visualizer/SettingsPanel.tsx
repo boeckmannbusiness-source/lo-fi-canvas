@@ -156,7 +156,7 @@ export function SettingsPanel({
                 ["bottom-right", "Bottom right"],
                 ["custom", "Custom"],
               ].map(([v, l]) => (
-                <SelectItem key={v} value={v} className="text-xs">
+                <SelectItem key={v} value={v!} className="text-xs">
                   {l}
                 </SelectItem>
               ))}
@@ -390,7 +390,7 @@ export function SettingsPanel({
                 ["center", "Center"],
                 ["bottom-left", "Bottom left"],
               ].map(([v, l]) => (
-                <SelectItem key={v} value={v} className="text-xs">
+                <SelectItem key={v} value={v!} className="text-xs">
                   {l}
                 </SelectItem>
               ))}
