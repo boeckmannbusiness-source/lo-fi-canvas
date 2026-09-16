@@ -60,8 +60,11 @@ async function pickAudioCodec(sampleRate: number, channels: number) {
     // isConfigSupported is optimistic in some browsers, so do a real probe.
     try {
       let failed = false;
+      let chunks = 0;
       const enc = new AudioEncoder({
-        output: () => {},
+        output: () => {
+          chunks++;
+        },
         error: () => {
           failed = true;
         },
@@ -85,7 +88,7 @@ async function pickAudioCodec(sampleRate: number, channels: number) {
       probe.close();
       await enc.flush();
       enc.close();
-      if (!failed) return c;
+      if (!failed && chunks > 0) return c;
     } catch {
       /* try next */
     }
