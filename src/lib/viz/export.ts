@@ -96,6 +96,38 @@ async function pickAudioCodec(sampleRate: number, channels: number) {
   return null;
 }
 
+/** Wait until an encoder's queue drains below `limit`, using dequeue events. */
+function waitForQueue(
+  enc: {
+    encodeQueueSize: number;
+    addEventListener: EventTarget["addEventListener"];
+    removeEventListener: EventTarget["removeEventListener"];
+  },
+  limit: number,
+): Promise<void> {
+  if (enc.encodeQueueSize <= limit) return Promise.resolve();
+  return new Promise<void>((resolve) => {
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      enc.removeEventListener("dequeue", onDequeue);
+      resolve();
+    };
+    const onDequeue = () => {
+      if (enc.encodeQueueSize <= limit) finish();
+    };
+    enc.addEventListener("dequeue", onDequeue);
+    // Safety net for engines that do not fire `dequeue`.
+    const poll = () => {
+      if (done) return;
+      if (enc.encodeQueueSize <= limit) finish();
+      else setTimeout(poll, 8);
+    };
+    setTimeout(poll, 8);
+  });
+}
+
 /** Frame-by-frame offline render to an MP4 (H.264 + AAC when available). */
 export async function renderVideo(opts: ExportOptions): Promise<Blob> {
   const { width, height, fps, duration, signal } = opts;
@@ -115,7 +147,9 @@ export async function renderVideo(opts: ExportOptions): Promise<Blob> {
   const target = new ArrayBufferTarget();
   const muxer = new Muxer({
     target,
-    fastStart: "in-memory",
+    // `in-memory` fast-start buffers every sample a second time before
+    // rewriting the file; progressive muxing halves peak memory.
+    fastStart: false,
     video: { codec: videoCodec.muxer, width, height },
     ...(hasAudio
       ? {
@@ -144,80 +178,94 @@ export async function renderVideo(opts: ExportOptions): Promise<Blob> {
     ...(videoCodec.muxer === "avc" ? { avc: { format: "avc" as const } } : {}),
   });
 
+  // Audio is encoded first (small payload) using the codec that was actually
+  // probed, so a fallback to Opus is honoured instead of hard-coding AAC.
+  if (hasAudio) {
+    opts.onProgress?.(0.01, "Encoding audio");
+    await encodeAudio(muxer, opts.audioBuffer!, audioCodec!.codec, duration, signal);
+  }
+
   const canvas = new OffscreenCanvas(width, height);
   const ctx = canvas.getContext("2d", { alpha: false })!;
 
-  for (let i = 0; i < totalFrames; i++) {
-    if (encoderError) throw encoderError;
-    if (signal?.aborted) {
-      videoEncoder.close();
-      throw new DOMException("Export cancelled", "AbortError");
-    }
-    const time = i / fps;
-    renderScene({
-      ctx,
-      width,
-      height,
-      time,
-      duration,
-      audio: frameAt(opts.analysis, time),
-      settings: opts.settings,
-      image: opts.image,
-      imageWidth: opts.imageWidth,
-      imageHeight: opts.imageHeight,
-      scale: height / 1080,
-    });
-    const frame = new VideoFrame(canvas, {
-      timestamp: Math.round((i * 1_000_000) / fps),
-      duration: Math.round(1_000_000 / fps),
-    });
-    videoEncoder.encode(frame, { keyFrame: i % (fps * 2) === 0 });
-    frame.close();
+  // One reusable render context: no per-frame object churn.
+  const rc = {
+    ctx,
+    width,
+    height,
+    time: 0,
+    duration,
+    audio: frameAt(opts.analysis, 0),
+    settings: opts.settings,
+    image: opts.image,
+    imageWidth: opts.imageWidth,
+    imageHeight: opts.imageHeight,
+    scale: height / 1080,
+  };
 
-    if (videoEncoder.encodeQueueSize > 8) {
-      await new Promise<void>((resolve) => {
-        const check = () =>
-          videoEncoder.encodeQueueSize > 4
-            ? setTimeout(check, 4)
-            : resolve();
-        check();
+  try {
+    for (let i = 0; i < totalFrames; i++) {
+      if (encoderError) throw encoderError;
+      if (signal?.aborted) throw new DOMException("Export cancelled", "AbortError");
+
+      const time = i / fps;
+      rc.time = time;
+      rc.audio = frameAt(opts.analysis, time);
+      renderScene(rc);
+
+      // Keep at most a couple of frames in flight: each 1080p frame is ~3 MB
+      // of raw planar data, so an unbounded queue is what blows up memory.
+      await waitForQueue(videoEncoder, 2);
+      if (encoderError) throw encoderError;
+
+      const frame = new VideoFrame(canvas, {
+        timestamp: Math.round((i * 1_000_000) / fps),
+        duration: Math.round(1_000_000 / fps),
       });
-    }
-    if (i % 5 === 0) {
-      opts.onProgress?.((i / totalFrames) * 0.92, "Rendering video");
-      await new Promise((r) => setTimeout(r, 0));
-    }
-  }
+      try {
+        videoEncoder.encode(frame, { keyFrame: i % (fps * 2) === 0 });
+      } finally {
+        frame.close();
+      }
 
-  await videoEncoder.flush();
-  videoEncoder.close();
+      if (i % 3 === 0) {
+        opts.onProgress?.(0.02 + (i / totalFrames) * 0.95, "Rendering video");
+        await new Promise((r) => setTimeout(r, 0));
+      }
+    }
 
-  if (hasAudio) {
-    opts.onProgress?.(0.94, "Encoding audio");
-    await encodeAudio(muxer, opts.audioBuffer!, duration, signal);
+    await videoEncoder.flush();
+    if (encoderError) throw encoderError;
+  } finally {
+    if (videoEncoder.state !== "closed") videoEncoder.close();
   }
 
   opts.onProgress?.(0.99, "Finalizing MP4");
   muxer.finalize();
-  return new Blob([target.buffer], { type: "video/mp4" });
+  const blob = new Blob([target.buffer], { type: "video/mp4" });
+  // Drop the muxer's copy so only the Blob retains the payload.
+  (target as unknown as { buffer: ArrayBuffer | null }).buffer = null;
+  return blob;
 }
 
 async function encodeAudio(
   muxer: Muxer<ArrayBufferTarget>,
   buffer: AudioBuffer,
+  codec: string,
   duration: number,
   signal?: AbortSignal,
 ) {
   const channels = Math.min(2, buffer.numberOfChannels);
   const sampleRate = buffer.sampleRate;
+  let audioError: Error | null = null;
   const encoder = new AudioEncoder({
     output: (chunk, meta) => muxer.addAudioChunk(chunk, meta),
     error: (e) => {
-      throw e;
+      audioError = e as Error;
     },
   });
   encoder.configure({
-    codec: "mp4a.40.2",
+    codec,
     sampleRate,
     numberOfChannels: channels,
     bitrate: 192_000,
@@ -225,31 +273,37 @@ async function encodeAudio(
 
   const total = Math.min(buffer.length, Math.ceil(duration * sampleRate));
   const chunkFrames = 4096;
-  const data = new Float32Array(chunkFrames * channels);
+  const scratch = new Float32Array(chunkFrames * channels);
   const chans: Float32Array[] = [];
   for (let c = 0; c < channels; c++) chans.push(buffer.getChannelData(c));
 
-  for (let offset = 0; offset < total; offset += chunkFrames) {
-    if (signal?.aborted) {
-      encoder.close();
-      throw new DOMException("Export cancelled", "AbortError");
+  try {
+    for (let offset = 0; offset < total; offset += chunkFrames) {
+      if (audioError) throw audioError;
+      if (signal?.aborted) throw new DOMException("Export cancelled", "AbortError");
+      const n = Math.min(chunkFrames, total - offset);
+      for (let c = 0; c < channels; c++) {
+        scratch.set(chans[c]!.subarray(offset, offset + n), c * n);
+      }
+      // AudioData copies the data, so a reused scratch view is safe here.
+      const audioData = new AudioData({
+        format: "f32-planar",
+        sampleRate,
+        numberOfFrames: n,
+        numberOfChannels: channels,
+        timestamp: Math.round((offset / sampleRate) * 1_000_000),
+        data: scratch.subarray(0, n * channels),
+      });
+      try {
+        encoder.encode(audioData);
+      } finally {
+        audioData.close();
+      }
+      await waitForQueue(encoder, 8);
     }
-    const n = Math.min(chunkFrames, total - offset);
-    for (let c = 0; c < channels; c++) {
-      data.set(chans[c]!.subarray(offset, offset + n), c * n);
-    }
-    const audioData = new AudioData({
-      format: "f32-planar",
-      sampleRate,
-      numberOfFrames: n,
-      numberOfChannels: channels,
-      timestamp: Math.round((offset / sampleRate) * 1_000_000),
-      data: data.slice(0, n * channels),
-    });
-    encoder.encode(audioData);
-    audioData.close();
-    if (encoder.encodeQueueSize > 16) await new Promise((r) => setTimeout(r, 4));
+    await encoder.flush();
+    if (audioError) throw audioError;
+  } finally {
+    if (encoder.state !== "closed") encoder.close();
   }
-  await encoder.flush();
-  encoder.close();
 }
