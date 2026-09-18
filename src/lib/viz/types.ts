@@ -8,6 +8,7 @@ export type VinylPosition =
 export type VisualizerType = "waveform" | "spectrum" | "bars";
 export type VisualizerPosition = "bottom-center" | "bottom-left" | "bottom-right";
 export type TextPosition = "top-left" | "top-center" | "bottom-left" | "center";
+export type LogoPosition = "top-left" | "top-right" | "bottom-left" | "bottom-right";
 export type CameraMove = "zoom-in" | "zoom-out" | "none";
 
 export interface Settings {
@@ -32,6 +33,7 @@ export interface Settings {
     opacity: number;
     rpm: number;
     audioReactive: boolean;
+    labelDarkness: number;
   };
   grain: { enabled: boolean; intensity: number };
   dust: { enabled: boolean; density: number; speed: number; opacity: number };
@@ -52,6 +54,14 @@ export interface Settings {
     position: TextPosition;
     fontSize: number;
     opacity: number;
+    color: string;
+  };
+  logo: {
+    enabled: boolean;
+    position: LogoPosition;
+    size: number;
+    opacity: number;
+    margin: number;
   };
 }
 
@@ -87,6 +97,9 @@ export interface RenderContext {
   image: CanvasImageSource | null;
   imageWidth: number;
   imageHeight: number;
+  logo: CanvasImageSource | null;
+  logoWidth: number;
+  logoHeight: number;
   /** scale factor relative to 1920x1080 reference */
   scale: number;
 }
@@ -103,6 +116,7 @@ export const defaultSettings = (): Settings => ({
     opacity: 0.9,
     rpm: 33.3,
     audioReactive: true,
+    labelDarkness: 0.42,
   },
   grain: { enabled: true, intensity: 0.07 },
   dust: { enabled: true, density: 0.4, speed: 0.3, opacity: 0.25 },
@@ -123,6 +137,14 @@ export const defaultSettings = (): Settings => ({
     position: "top-left",
     fontSize: 0.5,
     opacity: 0.85,
+    color: "#F5E6C8",
+  },
+  logo: {
+    enabled: false,
+    position: "top-right",
+    size: 0.14,
+    opacity: 0.8,
+    margin: 0.04,
   },
 });
 

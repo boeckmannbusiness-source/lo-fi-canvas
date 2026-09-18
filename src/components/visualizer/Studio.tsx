@@ -15,6 +15,7 @@ import {
   Download,
   Film,
   ImageIcon,
+  Badge,
   Music,
   Pause,
   Play,
@@ -45,6 +46,9 @@ export function Studio() {
   const [image, setImage] = useState<HTMLImageElement | null>(null);
   const [imageName, setImageName] = useState("");
   const imageUrlRef = useRef<string | null>(null);
+  const [logo, setLogo] = useState<HTMLImageElement | null>(null);
+  const [logoName, setLogoName] = useState("");
+  const logoUrlRef = useRef<string | null>(null);
 
   const [audioName, setAudioName] = useState("");
   const [duration, setDuration] = useState(0);
@@ -101,6 +105,7 @@ export function Studio() {
     () => () => {
       audioElRef.current?.pause();
       if (imageUrlRef.current) URL.revokeObjectURL(imageUrlRef.current);
+      if (logoUrlRef.current) URL.revokeObjectURL(logoUrlRef.current);
       if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
     },
     [],
@@ -177,6 +182,28 @@ export function Studio() {
     }
   };
 
+  const loadLogo = (file: File) => {
+    if (!/image\/(png|svg\+xml)/.test(file.type) && !/\.(png|svg)$/i.test(file.name)) {
+      toast.error("Please choose a PNG or SVG logo.");
+      return;
+    }
+    if (logoUrlRef.current) URL.revokeObjectURL(logoUrlRef.current);
+    const url = URL.createObjectURL(file);
+    logoUrlRef.current = url;
+    const img = new Image();
+    img.onload = () => {
+      setLogo(img);
+      setLogoName(file.name);
+      setSettings((current) => ({
+        ...current,
+        logo: { ...current.logo, enabled: true },
+      }));
+      setPresetId("custom");
+    };
+    img.onerror = () => toast.error("That logo could not be opened.");
+    img.src = url;
+  };
+
   const togglePlay = () => {
     const el = audioElRef.current;
     if (el && audioUrlRef.current) {
@@ -239,6 +266,9 @@ export function Studio() {
         image,
         imageWidth: image.naturalWidth,
         imageHeight: image.naturalHeight,
+        logo,
+        logoWidth: logo?.naturalWidth ?? 0,
+        logoHeight: logo?.naturalHeight ?? 0,
         analysis,
         audioBuffer: audioBufferRef.current,
         signal: controller.signal,
@@ -307,6 +337,13 @@ export function Studio() {
             />
             <div className="h-3" />
             <DropZone
+              icon={<Badge className="size-4" />}
+              label={logoName || "Drop logo (PNG / SVG)"}
+              accept="image/png,image/svg+xml,.png,.svg"
+              onFile={loadLogo}
+            />
+            <div className="h-3" />
+            <DropZone
               icon={<Music className="size-4" />}
               label={audioName || "Drop audio (MP3 / WAV)"}
               accept="audio/mpeg,audio/wav,.mp3,.wav"
@@ -359,6 +396,7 @@ export function Studio() {
                 <PreviewCanvas
                   settings={settings}
                   image={image}
+                  logo={logo}
                   analysis={analysis}
                   getTime={getTimeStable}
                   duration={duration}

@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -202,6 +203,11 @@ export function SettingsPanel({
           label="Audio-reactive scale"
           checked={settings.vinyl.audioReactive}
           onChange={(v) => patch("vinyl", { audioReactive: v })}
+        />
+        <Knob
+          label="Label darkness"
+          value={settings.vinyl.labelDarkness}
+          onChange={(v) => patch("vinyl", { labelDarkness: v })}
         />
       </Section>
 
@@ -409,8 +415,94 @@ export function SettingsPanel({
           disabled={!settings.text.enabled}
           onChange={(v) => patch("text", { opacity: v })}
         />
+        <HexColorInput
+          value={settings.text.color}
+          onChange={(color) => patch("text", { color })}
+        />
+      </Section>
+
+      <Section title="Logo overlay">
+        <Toggle
+          label="Enabled"
+          checked={settings.logo.enabled}
+          onChange={(v) => patch("logo", { enabled: v })}
+        />
+        <Row label="Position">
+          <Select
+            value={settings.logo.position}
+            onValueChange={(v) => patch("logo", { position: v as never })}
+          >
+            <SelectTrigger className={sel}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {[
+                ["top-left", "Top left"],
+                ["top-right", "Top right"],
+                ["bottom-left", "Bottom left"],
+                ["bottom-right", "Bottom right"],
+              ].map(([v, label]) => (
+                <SelectItem key={v} value={v ?? "top-right"} className="text-xs">
+                  {label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Row>
+        <Knob
+          label="Size"
+          value={settings.logo.size}
+          min={0.04}
+          max={0.35}
+          onChange={(v) => patch("logo", { size: v })}
+        />
+        <Knob
+          label="Opacity"
+          value={settings.logo.opacity}
+          onChange={(v) => patch("logo", { opacity: v })}
+        />
+        <Knob
+          label="Edge margin"
+          value={settings.logo.margin}
+          min={0.01}
+          max={0.12}
+          onChange={(v) => patch("logo", { margin: v })}
+        />
       </Section>
       <div className="h-10" />
     </div>
+  );
+}
+
+const HEX_COLOR = /^#[0-9a-f]{6}$/i;
+
+function HexColorInput({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const [draft, setDraft] = useState(value);
+  useEffect(() => setDraft(value), [value]);
+
+  return (
+    <Row label="Text color">
+      <div className="flex w-[130px] items-center gap-2">
+        <Input
+          type="color"
+          aria-label="Text color picker"
+          value={value}
+          className="h-8 w-9 cursor-pointer p-1"
+          onChange={(e) => onChange(e.target.value.toUpperCase())}
+        />
+        <Input
+          aria-label="Text color hex"
+          value={draft}
+          maxLength={7}
+          className="h-8 min-w-0 font-mono text-xs uppercase"
+          onChange={(e) => {
+            const next = e.target.value;
+            setDraft(next);
+            if (HEX_COLOR.test(next)) onChange(next.toUpperCase());
+          }}
+          onBlur={() => setDraft(HEX_COLOR.test(draft) ? draft.toUpperCase() : value)}
+        />
+      </div>
+    </Row>
   );
 }
