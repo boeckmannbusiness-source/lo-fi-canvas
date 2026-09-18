@@ -12,6 +12,9 @@ export interface ExportOptions {
   image: CanvasImageSource | null;
   imageWidth: number;
   imageHeight: number;
+  logo: CanvasImageSource | null;
+  logoWidth: number;
+  logoHeight: number;
   analysis: AudioAnalysis | null;
   audioBuffer: AudioBuffer | null;
   signal?: AbortSignal;
@@ -200,6 +203,9 @@ export async function renderVideo(opts: ExportOptions): Promise<Blob> {
     image: opts.image,
     imageWidth: opts.imageWidth,
     imageHeight: opts.imageHeight,
+    logo: opts.logo,
+    logoWidth: opts.logoWidth,
+    logoHeight: opts.logoHeight,
     scale: height / 1080,
   };
 

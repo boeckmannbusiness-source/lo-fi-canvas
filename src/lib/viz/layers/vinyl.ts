@@ -78,15 +78,30 @@ export function drawVinyl(r: RenderContext) {
   ctx.arc(0, 0, radius, 0, Math.PI * 2);
   ctx.fill();
 
-  // center label
+  // center label — the artwork is printed into the rotating record transform.
   const labelR = radius * 0.33;
-  const label = ctx.createRadialGradient(0, -labelR * 0.3, labelR * 0.1, 0, 0, labelR);
-  label.addColorStop(0, "#d8c7a6");
-  label.addColorStop(1, "#b39a72");
-  ctx.fillStyle = label;
-  ctx.beginPath();
-  ctx.arc(0, 0, labelR, 0, Math.PI * 2);
-  ctx.fill();
+  if (r.image && r.imageWidth > 0 && r.imageHeight > 0) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(0, 0, labelR, 0, Math.PI * 2);
+    ctx.clip();
+    const side = labelR * 2;
+    const crop = Math.min(r.imageWidth, r.imageHeight);
+    const sx = (r.imageWidth - crop) / 2;
+    const sy = (r.imageHeight - crop) / 2;
+    ctx.drawImage(r.image, sx, sy, crop, crop, -labelR, -labelR, side, side);
+    ctx.fillStyle = `rgba(0,0,0,${v.labelDarkness})`;
+    ctx.fillRect(-labelR, -labelR, side, side);
+    ctx.restore();
+  } else {
+    const label = ctx.createRadialGradient(0, -labelR * 0.3, labelR * 0.1, 0, 0, labelR);
+    label.addColorStop(0, "#d8c7a6");
+    label.addColorStop(1, "#b39a72");
+    ctx.fillStyle = label;
+    ctx.beginPath();
+    ctx.arc(0, 0, labelR, 0, Math.PI * 2);
+    ctx.fill();
+  }
 
   ctx.strokeStyle = "rgba(0,0,0,0.25)";
   ctx.lineWidth = Math.max(0.5, radius * 0.006);

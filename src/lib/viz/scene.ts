@@ -3,6 +3,7 @@ import { drawDust } from "./layers/dust";
 import { drawFlicker } from "./layers/flicker";
 import { drawGrain } from "./layers/grain";
 import { drawRain } from "./layers/rain";
+import { drawLogo } from "./layers/logo";
 import { drawText } from "./layers/text";
 import { drawVinyl } from "./layers/vinyl";
 import { drawVisualizer } from "./layers/visualizer";
@@ -19,6 +20,7 @@ export const layers: Layer[] = [
   drawFlicker,
   drawVisualizer,
   drawText,
+  drawLogo,
   drawGrain,
 ];
 

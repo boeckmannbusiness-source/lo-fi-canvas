@@ -28,14 +28,14 @@ export function drawText(r: RenderContext) {
   ctx.shadowBlur = base * 0.5;
 
   if (t.title) {
-    ctx.fillStyle = "rgba(255,255,255,0.95)";
+    ctx.fillStyle = t.color;
     ctx.font = `600 ${base}px ui-sans-serif, system-ui, sans-serif`;
     const spaced = t.title.split("").join("\u2009");
     ctx.fillText(spaced, x, y);
   }
   if (t.subtitle) {
     ctx.globalAlpha = t.opacity * 0.7;
-    ctx.fillStyle = "rgba(255,255,255,0.9)";
+    ctx.fillStyle = t.color;
     ctx.font = `300 ${base * 0.42}px ui-sans-serif, system-ui, sans-serif`;
     ctx.fillText(t.subtitle, x, y + base * 0.85);
   }

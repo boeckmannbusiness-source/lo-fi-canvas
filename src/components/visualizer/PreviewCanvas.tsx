@@ -6,6 +6,7 @@ import type { Settings } from "@/lib/viz/types";
 export function PreviewCanvas({
   settings,
   image,
+  logo,
   analysis,
   getTime,
   duration,
@@ -13,6 +14,7 @@ export function PreviewCanvas({
 }: {
   settings: Settings;
   image: HTMLImageElement | null;
+  logo: HTMLImageElement | null;
   analysis: AudioAnalysis | null;
   getTime: () => number;
   duration: number;
@@ -23,6 +25,8 @@ export function PreviewCanvas({
   settingsRef.current = settings;
   const imageRef = useRef(image);
   imageRef.current = image;
+  const logoRef = useRef(logo);
+  logoRef.current = logo;
   const analysisRef = useRef(analysis);
   analysisRef.current = analysis;
   const timeRef = useRef(getTime);
@@ -40,6 +44,7 @@ export function PreviewCanvas({
     let raf = 0;
     const loop = () => {
       const img = imageRef.current;
+      const logoImage = logoRef.current;
       renderScene({
         ctx,
         width: canvas.width,
@@ -51,6 +56,9 @@ export function PreviewCanvas({
         image: img,
         imageWidth: img?.naturalWidth ?? 0,
         imageHeight: img?.naturalHeight ?? 0,
+        logo: logoImage,
+        logoWidth: logoImage?.naturalWidth ?? 0,
+        logoHeight: logoImage?.naturalHeight ?? 0,
         scale: canvas.height / 1080,
       });
       raf = requestAnimationFrame(loop);
