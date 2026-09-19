@@ -211,6 +211,64 @@ export function SettingsPanel({
         />
       </Section>
 
+      <Section title="Cassette">
+        <Toggle
+          label="Enabled"
+          checked={settings.tape.enabled}
+          onChange={(v) => patch("tape", { enabled: v })}
+        />
+        <Row label="Position">
+          <Select
+            value={settings.tape.position}
+            onValueChange={(v) => patch("tape", { position: v as never })}
+          >
+            <SelectTrigger className={sel}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {[
+                ["top-left", "Top left"],
+                ["top-right", "Top right"],
+                ["bottom-left", "Bottom left"],
+                ["bottom-right", "Bottom right"],
+                ["center", "Center"],
+              ].map(([v, label]) => (
+                <SelectItem key={v} value={v ?? "bottom-left"} className="text-xs">
+                  {label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Row>
+        <Knob
+          label="Size"
+          value={settings.tape.size}
+          min={0.12}
+          max={0.55}
+          disabled={!settings.tape.enabled}
+          onChange={(v) => patch("tape", { size: v })}
+        />
+        <Knob
+          label="Opacity"
+          value={settings.tape.opacity}
+          disabled={!settings.tape.enabled}
+          onChange={(v) => patch("tape", { opacity: v })}
+        />
+        <Knob
+          label="Movement"
+          value={settings.tape.motion}
+          min={0}
+          max={1}
+          disabled={!settings.tape.enabled}
+          onChange={(v) => patch("tape", { motion: v })}
+        />
+        <Toggle
+          label="Audio-reactive motion"
+          checked={settings.tape.audioReactive}
+          onChange={(v) => patch("tape", { audioReactive: v })}
+        />
+      </Section>
+
       <Section title="Atmosphere">
         <Toggle
           label="Film grain"

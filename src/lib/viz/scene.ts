@@ -5,6 +5,7 @@ import { drawGrain } from "./layers/grain";
 import { drawRain } from "./layers/rain";
 import { drawLogo } from "./layers/logo";
 import { drawText } from "./layers/text";
+import { drawTape } from "./layers/tape";
 import { drawVinyl } from "./layers/vinyl";
 import { drawVisualizer } from "./layers/visualizer";
 import type { RenderContext } from "./types";
@@ -15,6 +16,7 @@ export type Layer = (r: RenderContext) => void;
 export const layers: Layer[] = [
   drawBackground,
   drawVinyl,
+  drawTape,
   drawRain,
   drawDust,
   drawFlicker,
