@@ -13,9 +13,10 @@ function roundedRect(
 }
 
 function tapeCenter(r: RenderContext): { x: number; y: number } {
+  const tape = r.settings.tape;
   const marginX = r.width * 0.18;
   const marginY = r.height * 0.22;
-  switch (r.settings.tape.position) {
+  switch (tape.position) {
     case "top-left":
       return { x: marginX, y: marginY };
     case "top-right":
@@ -26,7 +27,51 @@ function tapeCenter(r: RenderContext): { x: number; y: number } {
       return { x: r.width - marginX, y: r.height - marginY };
     case "center":
       return { x: r.width * 0.5, y: r.height * 0.5 };
+    case "custom":
+      return { x: tape.x * r.width, y: tape.y * r.height };
   }
+}
+
+function drawArtworkLabel(
+  r: RenderContext,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number,
+) {
+  const { ctx } = r;
+  const label = ctx.createLinearGradient(0, y, 0, y + height);
+  label.addColorStop(0, "#beb6a1");
+  label.addColorStop(1, "#8e8879");
+  ctx.fillStyle = label;
+  roundedRect(ctx, x, y, width, height, radius);
+  ctx.fill();
+
+  if (!r.image || r.imageWidth <= 0 || r.imageHeight <= 0) return;
+
+  ctx.save();
+  roundedRect(ctx, x, y, width, height, radius);
+  ctx.clip();
+  const imageRatio = r.imageWidth / r.imageHeight;
+  const labelRatio = width / height;
+  let sx = 0;
+  let sy = 0;
+  let sw = r.imageWidth;
+  let sh = r.imageHeight;
+  if (imageRatio > labelRatio) {
+    sw = r.imageHeight * labelRatio;
+    sx = (r.imageWidth - sw) * 0.5;
+  } else {
+    sh = r.imageWidth / labelRatio;
+    sy = (r.imageHeight - sh) * 0.5;
+  }
+  ctx.drawImage(r.image, sx, sy, sw, sh, x, y, width, height);
+  ctx.fillStyle = `rgba(0,0,0,${r.settings.tape.labelDarkness})`;
+  ctx.fillRect(x, y, width, height);
+  ctx.fillStyle = "rgba(190,182,161,0.1)";
+  ctx.fillRect(x, y, width, height);
+  ctx.restore();
 }
 
 function drawReel(
@@ -110,12 +155,7 @@ export function drawTape(r: RenderContext) {
   const labelY = y + height * 0.13;
   const labelW = width * 0.8;
   const labelH = height * 0.55;
-  const label = ctx.createLinearGradient(0, labelY, 0, labelY + labelH);
-  label.addColorStop(0, "#beb6a1");
-  label.addColorStop(1, "#8e8879");
-  ctx.fillStyle = label;
-  roundedRect(ctx, labelX, labelY, labelW, labelH, height * 0.025);
-  ctx.fill();
+  drawArtworkLabel(r, labelX, labelY, labelW, labelH, height * 0.025);
 
   ctx.fillStyle = "rgba(20,18,16,0.88)";
   roundedRect(

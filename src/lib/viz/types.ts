@@ -5,7 +5,13 @@ export type VinylPosition =
   | "bottom-left"
   | "bottom-right"
   | "custom";
-export type TapePosition = "top-left" | "top-right" | "bottom-left" | "bottom-right" | "center";
+export type TapePosition =
+  | "top-left"
+  | "top-right"
+  | "bottom-left"
+  | "bottom-right"
+  | "center"
+  | "custom";
 export type VisualizerType = "waveform" | "spectrum" | "bars";
 export type VisualizerPosition = "bottom-center" | "bottom-left" | "bottom-right";
 export type TextPosition = "top-left" | "top-center" | "bottom-left" | "center";
@@ -39,10 +45,13 @@ export interface Settings {
   tape: {
     enabled: boolean;
     position: TapePosition;
+    x: number;
+    y: number;
     size: number;
     opacity: number;
     motion: number;
     audioReactive: boolean;
+    labelDarkness: number;
   };
   grain: { enabled: boolean; intensity: number };
   dust: { enabled: boolean; density: number; speed: number; opacity: number };
@@ -130,10 +139,13 @@ export const defaultSettings = (): Settings => ({
   tape: {
     enabled: false,
     position: "bottom-left",
+    x: 0.18,
+    y: 0.78,
     size: 0.28,
     opacity: 0.88,
     motion: 0.45,
     audioReactive: true,
+    labelDarkness: 0.42,
   },
   grain: { enabled: true, intensity: 0.07 },
   dust: { enabled: true, density: 0.4, speed: 0.3, opacity: 0.25 },
