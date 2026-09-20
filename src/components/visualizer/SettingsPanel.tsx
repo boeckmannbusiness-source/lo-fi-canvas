@@ -232,6 +232,7 @@ export function SettingsPanel({
                 ["bottom-left", "Bottom left"],
                 ["bottom-right", "Bottom right"],
                 ["center", "Center"],
+                ["custom", "Custom"],
               ].map(([v, label]) => (
                 <SelectItem key={v} value={v ?? "bottom-left"} className="text-xs">
                   {label}
@@ -240,6 +241,22 @@ export function SettingsPanel({
             </SelectContent>
           </Select>
         </Row>
+        {settings.tape.position === "custom" && (
+          <>
+            <Knob
+              label="X"
+              value={settings.tape.x}
+              disabled={!settings.tape.enabled}
+              onChange={(v) => patch("tape", { x: v })}
+            />
+            <Knob
+              label="Y"
+              value={settings.tape.y}
+              disabled={!settings.tape.enabled}
+              onChange={(v) => patch("tape", { y: v })}
+            />
+          </>
+        )}
         <Knob
           label="Size"
           value={settings.tape.size}
@@ -266,6 +283,12 @@ export function SettingsPanel({
           label="Audio-reactive motion"
           checked={settings.tape.audioReactive}
           onChange={(v) => patch("tape", { audioReactive: v })}
+        />
+        <Knob
+          label="Label darkness"
+          value={settings.tape.labelDarkness}
+          disabled={!settings.tape.enabled}
+          onChange={(v) => patch("tape", { labelDarkness: v })}
         />
       </Section>
 
