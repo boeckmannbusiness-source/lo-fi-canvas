@@ -51,6 +51,7 @@ export interface Settings {
     opacity: number;
     motion: number;
     audioReactive: boolean;
+    printArtwork: boolean;
     labelDarkness: number;
   };
   grain: { enabled: boolean; intensity: number };
@@ -145,6 +146,7 @@ export const defaultSettings = (): Settings => ({
     opacity: 0.88,
     motion: 0.45,
     audioReactive: true,
+    printArtwork: true,
     labelDarkness: 0.42,
   },
   grain: { enabled: true, intensity: 0.07 },

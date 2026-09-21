@@ -155,7 +155,7 @@ export function SettingsPanel({
                 ["top-right", "Top right"],
                 ["bottom-left", "Bottom left"],
                 ["bottom-right", "Bottom right"],
-                ["custom", "Custom"],
+                ["custom", "Custom X / Y"],
               ].map(([v, l]) => (
                 <SelectItem key={v} value={v!} className="text-xs">
                   {l}
@@ -241,22 +241,18 @@ export function SettingsPanel({
             </SelectContent>
           </Select>
         </Row>
-        {settings.tape.position === "custom" && (
-          <>
-            <Knob
-              label="X"
-              value={settings.tape.x}
-              disabled={!settings.tape.enabled}
-              onChange={(v) => patch("tape", { x: v })}
-            />
-            <Knob
-              label="Y"
-              value={settings.tape.y}
-              disabled={!settings.tape.enabled}
-              onChange={(v) => patch("tape", { y: v })}
-            />
-          </>
-        )}
+        <Knob
+          label="Horizontal position"
+          value={settings.tape.x}
+          disabled={!settings.tape.enabled}
+          onChange={(v) => patch("tape", { position: "custom", x: v })}
+        />
+        <Knob
+          label="Vertical position"
+          value={settings.tape.y}
+          disabled={!settings.tape.enabled}
+          onChange={(v) => patch("tape", { position: "custom", y: v })}
+        />
         <Knob
           label="Size"
           value={settings.tape.size}
@@ -284,10 +280,15 @@ export function SettingsPanel({
           checked={settings.tape.audioReactive}
           onChange={(v) => patch("tape", { audioReactive: v })}
         />
+        <Toggle
+          label="Print artwork"
+          checked={settings.tape.printArtwork}
+          onChange={(v) => patch("tape", { printArtwork: v })}
+        />
         <Knob
           label="Label darkness"
           value={settings.tape.labelDarkness}
-          disabled={!settings.tape.enabled}
+          disabled={!settings.tape.enabled || !settings.tape.printArtwork}
           onChange={(v) => patch("tape", { labelDarkness: v })}
         />
       </Section>
