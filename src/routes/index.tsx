@@ -5,20 +5,20 @@ import { Studio } from "@/components/visualizer/Studio";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Lo-Fi Visualizer — Turn artwork + a track into a 1080p MP4" },
+      { title: "Berlin B Tapes — Turn artwork + a track into a 1080p MP4" },
       {
         name: "description",
         content:
-          "Browser-based lo-fi music visualizer: spinning vinyl, film grain, rain and dust over your artwork, exported as a 1920x1080 MP4 with your audio.",
+          "Berlin underground lo-fi visualizer: spinning vinyl, film grain, rain and dust over your artwork, exported as a 1920x1080 MP4 with your audio.",
       },
       {
         property: "og:title",
-        content: "Lo-Fi Visualizer — artwork + audio to 1080p MP4",
+        content: "Berlin B Tapes — artwork + audio to 1080p MP4",
       },
       {
         property: "og:description",
         content:
-          "Calm, cinematic lo-fi visuals rendered entirely in your browser. Nothing is uploaded.",
+          "Berlin underground lo-fi visuals rendered entirely in your browser. Nothing is uploaded.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },

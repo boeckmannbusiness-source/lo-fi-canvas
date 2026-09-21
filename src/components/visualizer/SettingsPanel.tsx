@@ -10,7 +10,13 @@ import {
 } from "@/components/ui/select";
 import { Knob, Row, Section, Toggle } from "./controls";
 import type { Settings } from "@/lib/viz/types";
-import { presets } from "@/lib/viz/types";
+import {
+  presets,
+  typographyPresets,
+  FONT_FAMILY_OPTIONS,
+  FONT_WEIGHT_OPTIONS,
+  type FontFamily,
+} from "@/lib/viz/types";
 import { RotateCcw } from "lucide-react";
 
 type Patch = <K extends keyof Settings>(key: K, value: Partial<Settings[K]>) => void;
@@ -467,25 +473,217 @@ export function SettingsPanel({
         />
       </Section>
 
-      <Section title="Text overlay">
+      {/* ── Typography ──────────────────────────────────────────────────── */}
+      <Section title="Typography">
         <Toggle
           label="Enabled"
           checked={settings.text.enabled}
           onChange={(v) => patch("text", { enabled: v })}
         />
+
+        {/* Text content */}
         <Input
           value={settings.text.title}
           placeholder="Title"
           className="h-8 text-xs"
+          disabled={!settings.text.enabled}
           onChange={(e) => patch("text", { title: e.target.value })}
+        />
+        <Toggle
+          label="Show subtitle"
+          checked={settings.text.showSubtitle}
+          onChange={(v) => patch("text", { showSubtitle: v })}
         />
         <Input
           value={settings.text.subtitle}
           placeholder="Subtitle"
           className="h-8 text-xs"
+          disabled={!settings.text.enabled || !settings.text.showSubtitle}
           onChange={(e) => patch("text", { subtitle: e.target.value })}
         />
-        <Row label="Position">
+
+        {/* Font family */}
+        <Row label="Font family">
+          <Select
+            value={settings.text.fontFamily}
+            onValueChange={(v) => patch("text", { fontFamily: v as FontFamily })}
+          >
+            <SelectTrigger className="h-8 w-[150px] text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {FONT_FAMILY_OPTIONS.map((f) => (
+                <SelectItem key={f.value} value={f.value} className="text-xs">
+                  {f.label}
+                  <span className="ml-1.5 text-[10px] text-muted-foreground">
+                    {f.category}
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Row>
+
+        {/* Font weights */}
+        <Row label="Title weight">
+          <Select
+            value={String(settings.text.titleWeight)}
+            onValueChange={(v) => patch("text", { titleWeight: Number(v) })}
+          >
+            <SelectTrigger className="h-8 w-[130px] text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {FONT_WEIGHT_OPTIONS.map((w) => (
+                <SelectItem key={w.value} value={String(w.value)} className="text-xs">
+                  {w.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Row>
+        <Row label="Subtitle weight">
+          <Select
+            value={String(settings.text.subtitleWeight)}
+            onValueChange={(v) => patch("text", { subtitleWeight: Number(v) })}
+          >
+            <SelectTrigger className="h-8 w-[130px] text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {FONT_WEIGHT_OPTIONS.map((w) => (
+                <SelectItem key={w.value} value={String(w.value)} className="text-xs">
+                  {w.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Row>
+
+        {/* Font sizes */}
+        <Knob
+          label="Title size"
+          value={settings.text.fontSize}
+          min={1}
+          max={20}
+          step={0.1}
+          disabled={!settings.text.enabled}
+          onChange={(v) => patch("text", { fontSize: v })}
+          format={(v) => `${v.toFixed(1)}%`}
+        />
+        <Knob
+          label="Subtitle size"
+          value={settings.text.subtitleSize}
+          min={0.5}
+          max={8}
+          step={0.1}
+          disabled={!settings.text.enabled || !settings.text.showSubtitle}
+          onChange={(v) => patch("text", { subtitleSize: v })}
+          format={(v) => `${v.toFixed(1)}%`}
+        />
+
+        {/* Letter spacing */}
+        <Knob
+          label="Title tracking"
+          value={settings.text.titleLetterSpacing}
+          min={-0.05}
+          max={0.2}
+          step={0.005}
+          disabled={!settings.text.enabled}
+          onChange={(v) => patch("text", { titleLetterSpacing: v })}
+          format={(v) => v === 0 ? "0" : v > 0 ? `+${(v * 100).toFixed(1)}%` : `${(v * 100).toFixed(1)}%`}
+        />
+        <Knob
+          label="Subtitle tracking"
+          value={settings.text.subtitleLetterSpacing}
+          min={-0.02}
+          max={0.2}
+          step={0.005}
+          disabled={!settings.text.enabled || !settings.text.showSubtitle}
+          onChange={(v) => patch("text", { subtitleLetterSpacing: v })}
+          format={(v) => v === 0 ? "0" : v > 0 ? `+${(v * 100).toFixed(1)}%` : `${(v * 100).toFixed(1)}%`}
+        />
+
+        {/* Line height */}
+        <Knob
+          label="Line height"
+          value={settings.text.lineHeight}
+          min={0.8}
+          max={2.5}
+          step={0.05}
+          disabled={!settings.text.enabled}
+          onChange={(v) => patch("text", { lineHeight: v })}
+          format={(v) => `${v.toFixed(2)}x`}
+        />
+
+        {/* Colors */}
+        <HexColorInput
+          label="Title color"
+          value={settings.text.titleColor}
+          onChange={(color) => patch("text", { titleColor: color })}
+        />
+        <Knob
+          label="Title opacity"
+          value={settings.text.titleOpacity}
+          disabled={!settings.text.enabled}
+          onChange={(v) => patch("text", { titleOpacity: v })}
+        />
+        <HexColorInput
+          label="Subtitle color"
+          value={settings.text.subtitleColor}
+          onChange={(color) => patch("text", { subtitleColor: color })}
+        />
+        <Knob
+          label="Subtitle opacity"
+          value={settings.text.subtitleOpacity}
+          disabled={!settings.text.enabled || !settings.text.showSubtitle}
+          onChange={(v) => patch("text", { subtitleOpacity: v })}
+        />
+
+        {/* Positioning */}
+        <Row label="Horizontal">
+          <Select
+            value={settings.text.positionH}
+            onValueChange={(v) => patch("text", { positionH: v as never })}
+          >
+            <SelectTrigger className={sel}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="left" className="text-xs">
+                Left
+              </SelectItem>
+              <SelectItem value="center" className="text-xs">
+                Center
+              </SelectItem>
+              <SelectItem value="right" className="text-xs">
+                Right
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </Row>
+        <Row label="Vertical">
+          <Select
+            value={settings.text.positionV}
+            onValueChange={(v) => patch("text", { positionV: v as never })}
+          >
+            <SelectTrigger className={sel}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="top" className="text-xs">
+                Top
+              </SelectItem>
+              <SelectItem value="center" className="text-xs">
+                Center
+              </SelectItem>
+              <SelectItem value="bottom" className="text-xs">
+                Bottom
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </Row>
+        <Row label="Preset position">
           <Select
             value={settings.text.position}
             onValueChange={(v) => patch("text", { position: v as never })}
@@ -495,10 +693,14 @@ export function SettingsPanel({
             </SelectTrigger>
             <SelectContent>
               {[
+                ["center", "Center"],
                 ["top-left", "Top left"],
                 ["top-center", "Top center"],
-                ["center", "Center"],
+                ["top-right", "Top right"],
                 ["bottom-left", "Bottom left"],
+                ["bottom-center", "Bottom center"],
+                ["bottom-right", "Bottom right"],
+                ["custom", "Custom"],
               ].map(([v, l]) => (
                 <SelectItem key={v} value={v!} className="text-xs">
                   {l}
@@ -507,22 +709,148 @@ export function SettingsPanel({
             </SelectContent>
           </Select>
         </Row>
-        <Knob
-          label="Font size"
-          value={settings.text.fontSize}
-          disabled={!settings.text.enabled}
-          onChange={(v) => patch("text", { fontSize: v })}
+        {settings.text.position === "custom" && (
+          <>
+            <Knob
+              label="Custom X"
+              value={settings.text.customX}
+              disabled={!settings.text.enabled}
+              onChange={(v) => patch("text", { customX: v })}
+              format={(v) => `${Math.round(v * 100)}%`}
+            />
+            <Knob
+              label="Custom Y"
+              value={settings.text.customY}
+              disabled={!settings.text.enabled}
+              onChange={(v) => patch("text", { customY: v })}
+              format={(v) => `${Math.round(v * 100)}%`}
+            />
+          </>
+        )}
+
+        {/* Text alignment */}
+        <Row label="Text align">
+          <Select
+            value={settings.text.textAlignment}
+            onValueChange={(v) => patch("text", { textAlignment: v as never })}
+          >
+            <SelectTrigger className={sel}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="left" className="text-xs">
+                Left
+              </SelectItem>
+              <SelectItem value="center" className="text-xs">
+                Center
+              </SelectItem>
+              <SelectItem value="right" className="text-xs">
+                Right
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </Row>
+
+        {/* Shadow */}
+        <Toggle
+          label="Shadow"
+          checked={settings.text.shadowEnabled}
+          onChange={(v) => patch("text", { shadowEnabled: v })}
         />
-        <Knob
-          label="Opacity"
-          value={settings.text.opacity}
-          disabled={!settings.text.enabled}
-          onChange={(v) => patch("text", { opacity: v })}
+        {settings.text.shadowEnabled && (
+          <>
+            <HexColorInput
+              label="Shadow color"
+              value={settings.text.shadowColor}
+              onChange={(color) => patch("text", { shadowColor: color })}
+            />
+            <Knob
+              label="Shadow opacity"
+              value={settings.text.shadowOpacity}
+              disabled={!settings.text.enabled}
+              onChange={(v) => patch("text", { shadowOpacity: v })}
+            />
+            <Knob
+              label="Shadow blur"
+              value={settings.text.shadowBlur}
+              min={0}
+              max={1}
+              step={0.01}
+              disabled={!settings.text.enabled}
+              onChange={(v) => patch("text", { shadowBlur: v })}
+              format={(v) => `${(v * 100).toFixed(0)}%`}
+            />
+            <Knob
+              label="Shadow offset X"
+              value={settings.text.shadowOffsetX}
+              min={-0.5}
+              max={0.5}
+              step={0.01}
+              disabled={!settings.text.enabled}
+              onChange={(v) => patch("text", { shadowOffsetX: v })}
+              format={(v) => `${(v * 100).toFixed(0)}%`}
+            />
+            <Knob
+              label="Shadow offset Y"
+              value={settings.text.shadowOffsetY}
+              min={-0.5}
+              max={0.5}
+              step={0.01}
+              disabled={!settings.text.enabled}
+              onChange={(v) => patch("text", { shadowOffsetY: v })}
+              format={(v) => `${(v * 100).toFixed(0)}%`}
+            />
+          </>
+        )}
+
+        {/* Stroke */}
+        <Toggle
+          label="Stroke / outline"
+          checked={settings.text.strokeEnabled}
+          onChange={(v) => patch("text", { strokeEnabled: v })}
         />
-        <HexColorInput
-          value={settings.text.color}
-          onChange={(color) => patch("text", { color })}
-        />
+        {settings.text.strokeEnabled && (
+          <>
+            <HexColorInput
+              label="Stroke color"
+              value={settings.text.strokeColor}
+              onChange={(color) => patch("text", { strokeColor: color })}
+            />
+            <Knob
+              label="Stroke width"
+              value={settings.text.strokeWidth}
+              min={0}
+              max={0.3}
+              step={0.005}
+              disabled={!settings.text.enabled}
+              onChange={(v) => patch("text", { strokeWidth: v })}
+              format={(v) => `${(v * 100).toFixed(1)}%`}
+            />
+          </>
+        )}
+
+        {/* Typography presets */}
+        <div className="pt-1">
+          <p className="mb-2 text-[10px] font-medium uppercase tracking-[0.15em] text-muted-foreground">
+            Typography Presets
+          </p>
+          <div className="space-y-1.5">
+            {typographyPresets.map((p) => (
+              <button
+                key={p.id}
+                onClick={() =>
+                  patch("text", p.apply(settings).text)
+                }
+                className="w-full rounded-md border border-border/60 px-3 py-2 text-left transition-colors hover:bg-accent/40"
+              >
+                <div className="text-xs font-medium">{p.name}</div>
+                <div className="text-[10px] text-muted-foreground">
+                  {p.description}
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
       </Section>
 
       <Section title="Logo overlay">
@@ -580,22 +908,30 @@ export function SettingsPanel({
 
 const HEX_COLOR = /^#[0-9a-f]{6}$/i;
 
-function HexColorInput({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+function HexColorInput({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
   const [draft, setDraft] = useState(value);
   useEffect(() => setDraft(value), [value]);
 
   return (
-    <Row label="Text color">
+    <Row label={label}>
       <div className="flex w-[130px] items-center gap-2">
         <Input
           type="color"
-          aria-label="Text color picker"
+          aria-label={`${label} picker`}
           value={value}
           className="h-8 w-9 cursor-pointer p-1"
           onChange={(e) => onChange(e.target.value.toUpperCase())}
         />
         <Input
-          aria-label="Text color hex"
+          aria-label={`${label} hex`}
           value={draft}
           maxLength={7}
           className="h-8 min-w-0 font-mono text-xs uppercase"

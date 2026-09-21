@@ -28,6 +28,7 @@ import { PreviewCanvas } from "./PreviewCanvas";
 import { SettingsPanel } from "./SettingsPanel";
 import { analyzeBuffer, type AudioAnalysis } from "@/lib/viz/analysis";
 import { isExportSupported, renderVideo } from "@/lib/viz/export";
+import { loadFonts } from "@/lib/viz/fonts";
 import { defaultSettings, presets, type Settings } from "@/lib/viz/types";
 
 const fmt = (s: number) => {
@@ -227,12 +228,16 @@ export function Studio() {
     setTime(t);
   };
 
+  // Load custom fonts for canvas rendering
+  useEffect(() => {
+    loadFonts();
+  }, []);
+
   useEffect(() => {
     const el = audioElRef.current;
     if (el) el.volume = muted ? 0 : volume;
   }, [volume, muted]);
 
-  
   const timeRef = useRef(time);
   timeRef.current = time;
   const getTimeStable = useCallback(() => timeRef.current, []);
@@ -309,7 +314,7 @@ export function Studio() {
         <div className="flex items-center gap-2">
           <Disc3 className="size-4 text-primary" />
           <span className="text-xs font-medium uppercase tracking-[0.25em]">
-            Lo-Fi Visualizer
+            Berlin B Tapes
           </span>
         </div>
         <div className="flex items-center gap-2">

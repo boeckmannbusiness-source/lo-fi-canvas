@@ -15,9 +15,61 @@ export type TapePosition =
 export type VisualizerType = "waveform" | "spectrum" | "bars" | "stereo";
 export type VisualizerPosition = "bottom-center" | "bottom-left" | "bottom-right";
 export type VisualizerOrientation = "horizontal" | "vertical";
-export type TextPosition = "top-left" | "top-center" | "bottom-left" | "center";
+export type TextPosition =
+  | "top-left"
+  | "top-center"
+  | "top-right"
+  | "center"
+  | "bottom-left"
+  | "bottom-center"
+  | "bottom-right"
+  | "custom";
+export type TextHAlign = "left" | "center" | "right";
+export type TextVAlign = "top" | "center" | "bottom";
 export type LogoPosition = "top-left" | "top-right" | "bottom-left" | "bottom-right";
 export type CameraMove = "zoom-in" | "zoom-out" | "none";
+
+/** Font family options for the typography system. */
+export type FontFamily =
+  | "System Sans"
+  | "Inter"
+  | "Space Grotesk"
+  | "Oswald"
+  | "IBM Plex Mono"
+  | "Playfair Display"
+  | "Bebas Neue"
+  | "System Serif"
+  | "System Mono";
+
+export interface FontFamilyOption {
+  value: FontFamily;
+  label: string;
+  category: string;
+}
+
+export const FONT_FAMILY_OPTIONS: FontFamilyOption[] = [
+  { value: "System Sans", label: "System Sans", category: "Sans / System" },
+  { value: "Inter", label: "Inter", category: "Sans / Modern" },
+  { value: "Space Grotesk", label: "Space Grotesk", category: "Sans / Modern" },
+  { value: "Oswald", label: "Oswald", category: "Condensed" },
+  { value: "Bebas Neue", label: "Bebas Neue", category: "Display / Editorial" },
+  { value: "System Serif", label: "System Serif", category: "Serif / System" },
+  { value: "Playfair Display", label: "Playfair Display", category: "Serif / Editorial" },
+  { value: "System Mono", label: "System Mono", category: "Monospace / System" },
+  { value: "IBM Plex Mono", label: "IBM Plex Mono", category: "Monospace" },
+];
+
+export const FONT_WEIGHT_OPTIONS = [
+  { value: 100, label: "Thin" },
+  { value: 200, label: "Extra Light" },
+  { value: 300, label: "Light" },
+  { value: 400, label: "Regular" },
+  { value: 500, label: "Medium" },
+  { value: 600, label: "Semibold" },
+  { value: 700, label: "Bold" },
+  { value: 800, label: "Extra Bold" },
+  { value: 900, label: "Black" },
+];
 
 export interface Settings {
   camera: {
@@ -72,10 +124,35 @@ export interface Settings {
     enabled: boolean;
     title: string;
     subtitle: string;
-    position: TextPosition;
+    showSubtitle: boolean;
+    fontFamily: FontFamily;
+    titleWeight: number;
+    subtitleWeight: number;
     fontSize: number;
     opacity: number;
-    color: string;
+    titleColor: string;
+    titleOpacity: number;
+    titleLetterSpacing: number;
+    subtitleSize: number;
+    subtitleColor: string;
+    subtitleOpacity: number;
+    subtitleLetterSpacing: number;
+    lineHeight: number;
+    position: TextPosition;
+    positionH: TextHAlign;
+    positionV: TextVAlign;
+    customX: number;
+    customY: number;
+    textAlignment: TextHAlign;
+    shadowEnabled: boolean;
+    shadowColor: string;
+    shadowOpacity: number;
+    shadowBlur: number;
+    shadowOffsetX: number;
+    shadowOffsetY: number;
+    strokeEnabled: boolean;
+    strokeColor: string;
+    strokeWidth: number;
   };
   logo: {
     enabled: boolean;
@@ -176,10 +253,35 @@ export const defaultSettings = (): Settings => ({
     enabled: false,
     title: "MIDNIGHT TOKYO",
     subtitle: "lo-fi beats for late nights",
-    position: "top-left",
-    fontSize: 0.5,
+    showSubtitle: true,
+    fontFamily: "Inter",
+    titleWeight: 700,
+    subtitleWeight: 400,
+    fontSize: 6,
     opacity: 0.85,
-    color: "#F5E6C8",
+    titleColor: "#F5E6C8",
+    titleOpacity: 0.9,
+    titleLetterSpacing: 0,
+    subtitleSize: 2.2,
+    subtitleColor: "#F5E6C8",
+    subtitleOpacity: 0.65,
+    subtitleLetterSpacing: 0.02,
+    lineHeight: 1.3,
+    position: "center",
+    positionH: "center",
+    positionV: "center",
+    customX: 0.5,
+    customY: 0.5,
+    textAlignment: "center",
+    shadowEnabled: true,
+    shadowColor: "#000000",
+    shadowOpacity: 0.55,
+    shadowBlur: 0.3,
+    shadowOffsetX: 0,
+    shadowOffsetY: 0.05,
+    strokeEnabled: false,
+    strokeColor: "#000000",
+    strokeWidth: 0.05,
   },
   logo: {
     enabled: false,
@@ -271,6 +373,155 @@ export const presets: Preset[] = [
       s.visualizer.enabled = false;
       s.background.vignette = 0.25;
       s.camera = { move: "zoom-in", amount: 0.02, driftX: 0, driftY: 0 };
+      return s;
+    },
+  },
+];
+
+/* ── Typography presets ───────────────────────────────────────────────────── */
+
+export interface TypographyPreset {
+  id: string;
+  name: string;
+  description: string;
+  apply: (s: Settings) => Settings;
+}
+
+export const typographyPresets: TypographyPreset[] = [
+  {
+    id: "berlin-editorial",
+    name: "Berlin Editorial",
+    description: "Large, centered, bold, tight tracking",
+    apply: (base) => {
+      const s = clone(base);
+      s.text = {
+        ...s.text,
+        enabled: true,
+        fontFamily: "Space Grotesk",
+        titleWeight: 700,
+        subtitleWeight: 400,
+        fontSize: 7,
+        titleLetterSpacing: -0.01,
+        subtitleSize: 2,
+        subtitleLetterSpacing: 0.02,
+        positionH: "center",
+        positionV: "center",
+        textAlignment: "center",
+        lineHeight: 1.2,
+        titleColor: "#F5E6C8",
+        titleOpacity: 0.92,
+        subtitleColor: "#F5E6C8",
+        subtitleOpacity: 0.6,
+        shadowEnabled: true,
+        shadowOpacity: 0.4,
+        shadowBlur: 0.25,
+        shadowOffsetX: 0,
+        shadowOffsetY: 0.03,
+        strokeEnabled: false,
+      };
+      return s;
+    },
+  },
+  {
+    id: "underground-tape",
+    name: "Underground Tape",
+    description: "Bold condensed, analog label aesthetic",
+    apply: (base) => {
+      const s = clone(base);
+      s.text = {
+        ...s.text,
+        enabled: true,
+        fontFamily: "Oswald",
+        titleWeight: 700,
+        subtitleWeight: 400,
+        fontSize: 7.5,
+        titleLetterSpacing: 0.04,
+        subtitleSize: 2,
+        subtitleLetterSpacing: 0.06,
+        positionH: "center",
+        positionV: "center",
+        textAlignment: "center",
+        lineHeight: 1.25,
+        titleColor: "#F0E8D0",
+        titleOpacity: 0.92,
+        subtitleColor: "#F0E8D0",
+        subtitleOpacity: 0.55,
+        shadowEnabled: true,
+        shadowOpacity: 0.5,
+        shadowBlur: 0.2,
+        shadowOffsetX: 0,
+        shadowOffsetY: 0.04,
+        strokeEnabled: false,
+      };
+      return s;
+    },
+  },
+  {
+    id: "minimal-studio",
+    name: "Minimal Studio",
+    description: "Clean, medium weight, understated",
+    apply: (base) => {
+      const s = clone(base);
+      s.text = {
+        ...s.text,
+        enabled: true,
+        fontFamily: "Inter",
+        titleWeight: 500,
+        subtitleWeight: 300,
+        fontSize: 4.5,
+        titleLetterSpacing: 0.02,
+        subtitleSize: 1.8,
+        subtitleLetterSpacing: 0.03,
+        positionH: "center",
+        positionV: "center",
+        textAlignment: "center",
+        lineHeight: 1.35,
+        titleColor: "#FFFFFF",
+        titleOpacity: 0.85,
+        subtitleColor: "#FFFFFF",
+        subtitleOpacity: 0.5,
+        shadowEnabled: false,
+        shadowOpacity: 0,
+        shadowBlur: 0,
+        strokeEnabled: false,
+      };
+      return s;
+    },
+  },
+  {
+    id: "b-tapes-hero",
+    name: "B Tapes Hero",
+    description: "Very large centered, extra bold, strong presence",
+    apply: (base) => {
+      const s = clone(base);
+      s.text = {
+        ...s.text,
+        enabled: true,
+        title: "BERLIN B TAPES",
+        subtitle: "Late Night in Berlin",
+        showSubtitle: true,
+        fontFamily: "Bebas Neue",
+        titleWeight: 400,
+        subtitleWeight: 300,
+        fontSize: 10,
+        titleLetterSpacing: 0.06,
+        subtitleSize: 2.5,
+        subtitleLetterSpacing: 0.08,
+        positionH: "center",
+        positionV: "center",
+        textAlignment: "center",
+        lineHeight: 1.2,
+        titleColor: "#F5E6C8",
+        titleOpacity: 0.95,
+        subtitleColor: "#F5E6C8",
+        subtitleOpacity: 0.6,
+        shadowEnabled: true,
+        shadowOpacity: 0.5,
+        shadowBlur: 0.3,
+        shadowOffsetX: 0,
+        shadowOffsetY: 0.04,
+        strokeEnabled: false,
+      };
       return s;
     },
   },
