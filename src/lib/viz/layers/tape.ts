@@ -48,7 +48,7 @@ function drawArtworkLabel(
   roundedRect(ctx, x, y, width, height, radius);
   ctx.fill();
 
-  if (!r.image || r.imageWidth <= 0 || r.imageHeight <= 0) return;
+  if (!r.settings.tape.printArtwork || !r.image || r.imageWidth <= 0 || r.imageHeight <= 0) return;
 
   ctx.save();
   roundedRect(ctx, x, y, width, height, radius);
