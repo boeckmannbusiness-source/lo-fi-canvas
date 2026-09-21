@@ -397,6 +397,28 @@ export function SettingsPanel({
               <SelectItem value="bars" className="text-xs">
                 Minimal bars
               </SelectItem>
+              <SelectItem value="stereo" className="text-xs">
+                Stereo levels
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </Row>
+        <Row label="Orientation">
+          <Select
+            value={settings.visualizer.orientation}
+            onValueChange={(v) => patch("visualizer", { orientation: v as never })}
+            disabled={settings.visualizer.type !== "stereo"}
+          >
+            <SelectTrigger className={sel}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="vertical" className="text-xs">
+                Vertical
+              </SelectItem>
+              <SelectItem value="horizontal" className="text-xs">
+                Horizontal
+              </SelectItem>
             </SelectContent>
           </Select>
         </Row>

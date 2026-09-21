@@ -19,6 +19,14 @@ export interface AudioAnalysis {
   spectrum: Float32Array;
   /** frames * WAVE */
   waveform: Float32Array;
+  /** per-frame RMS level for left channel */
+  levelLeft: Float32Array;
+  /** per-frame RMS level for right channel */
+  levelRight: Float32Array;
+  /** peak hold level for left channel (decays slowly) */
+  peakLeft: Float32Array;
+  /** peak hold level for right channel (decays slowly) */
+  peakRight: Float32Array;
 }
 
 /**
@@ -33,6 +41,13 @@ export async function analyzeBuffer(
   const sampleRate = buffer.sampleRate;
   const length = buffer.length;
   const chCount = buffer.numberOfChannels;
+
+  // Keep separate channel data for stereo level analysis
+  const channels: Float32Array[] = [];
+  for (let c = 0; c < Math.min(2, chCount); c++) {
+    channels.push(buffer.getChannelData(c));
+  }
+
   const mono = new Float32Array(length);
   for (let c = 0; c < chCount; c++) {
     const data = buffer.getChannelData(c);
@@ -51,6 +66,10 @@ export async function analyzeBuffer(
     treble: new Float32Array(frames),
     spectrum: new Float32Array(frames * BINS),
     waveform: new Float32Array(frames * WAVE),
+    levelLeft: new Float32Array(frames),
+    levelRight: new Float32Array(frames),
+    peakLeft: new Float32Array(frames),
+    peakRight: new Float32Array(frames),
   };
 
   const window = new Float32Array(FFT_SIZE);
@@ -63,6 +82,18 @@ export async function analyzeBuffer(
   let sT = 0;
   let sR = 0;
   const prevSpec = new Float32Array(BINS);
+
+  // Stereo level meter: attack/release smoothing
+  // Fast attack (responds quickly to transients), slow release (holds peaks)
+  const attackCoeff = 0.12;  // ~8ms at 60fps — fast response
+  const releaseCoeff = 0.025; // ~40ms at 60fps — smooth decay
+  let sL = 0;
+  let sRch = 0;
+  let peakL = 0;
+  let peakR = 0;
+  const peakDecay = 0.997; // slow peak decay (~0.3%/frame)
+  const leftWindow = new Float32Array(FFT_SIZE);
+  const rightWindow = new Float32Array(FFT_SIZE);
 
   for (let f = 0; f < frames; f++) {
     const center = Math.floor((f / ANALYSIS_FPS) * sampleRate);
@@ -110,6 +141,48 @@ export async function analyzeBuffer(
     res.treble[f] = sT;
     res.rms[f] = sR;
 
+    // Per-channel RMS for stereo level meter
+    // For mono audio, both channels get the same data
+    if (channels.length >= 1) {
+      for (let i = 0; i < FFT_SIZE; i++) {
+        const idx = start + i;
+        leftWindow[i] = idx >= 0 && idx < length ? channels[0]![idx]! : 0;
+      }
+    }
+    if (channels.length >= 2) {
+      for (let i = 0; i < FFT_SIZE; i++) {
+        const idx = start + i;
+        rightWindow[i] = idx >= 0 && idx < length ? channels[1]![idx]! : 0;
+      }
+    } else {
+      // Mono: copy left to right so both meters react equally
+      rightWindow.set(leftWindow);
+    }
+    let lRms = 0;
+    let rRms = 0;
+    for (let i = 0; i < FFT_SIZE; i++) {
+      lRms += leftWindow[i]! * leftWindow[i]!;
+      rRms += rightWindow[i]! * rightWindow[i]!;
+    }
+    lRms = Math.sqrt(lRms / FFT_SIZE) * 2.2;
+    rRms = Math.sqrt(rRms / FFT_SIZE) * 2.2;
+
+    // Asymmetric attack/release: fast attack, slow release
+    const lTarget = Math.min(1, lRms);
+    const rTarget = Math.min(1, rRms);
+    const lCoeff = lTarget > sL ? attackCoeff : releaseCoeff;
+    const rCoeff = rTarget > sRch ? attackCoeff : releaseCoeff;
+    sL = sL * (1 - lCoeff) + lTarget * lCoeff;
+    sRch = sRch * (1 - rCoeff) + rTarget * rCoeff;
+    res.levelLeft[f] = sL;
+    res.levelRight[f] = sRch;
+
+    // Peak hold: rise instantly, decay slowly
+    peakL = Math.max(sL, peakL * peakDecay);
+    peakR = Math.max(sRch, peakR * peakDecay);
+    res.peakLeft[f] = peakL;
+    res.peakRight[f] = peakR;
+
     // log-spaced spectrum bins
     for (let b = 0; b < BINS; b++) {
       const lo = Math.floor(Math.pow(b / BINS, 2.2) * (mags.length - 2)) + 1;
@@ -148,6 +221,10 @@ const scratch: AudioFrame = {
   treble: 0,
   spectrum: new Float32Array(BINS),
   waveform: new Float32Array(WAVE),
+  levelLeft: 0,
+  levelRight: 0,
+  peakLeft: 0,
+  peakRight: 0,
 };
 
 export function frameAt(analysis: AudioAnalysis | null, time: number): AudioFrame {
@@ -155,6 +232,8 @@ export function frameAt(analysis: AudioAnalysis | null, time: number): AudioFram
     scratch.rms = scratch.bass = scratch.mid = scratch.treble = 0;
     scratch.spectrum.fill(0);
     scratch.waveform.fill(0);
+    scratch.levelLeft = scratch.levelRight = 0;
+    scratch.peakLeft = scratch.peakRight = 0;
     return scratch;
   }
   const i = Math.max(
@@ -167,5 +246,9 @@ export function frameAt(analysis: AudioAnalysis | null, time: number): AudioFram
   scratch.treble = analysis.treble[i]!;
   scratch.spectrum.set(analysis.spectrum.subarray(i * BINS, i * BINS + BINS));
   scratch.waveform.set(analysis.waveform.subarray(i * WAVE, i * WAVE + WAVE));
+  scratch.levelLeft = analysis.levelLeft[i]!;
+  scratch.levelRight = analysis.levelRight[i]!;
+  scratch.peakLeft = analysis.peakLeft[i]!;
+  scratch.peakRight = analysis.peakRight[i]!;
   return scratch;
 }

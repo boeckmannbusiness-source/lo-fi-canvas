@@ -12,8 +12,9 @@ export type TapePosition =
   | "bottom-right"
   | "center"
   | "custom";
-export type VisualizerType = "waveform" | "spectrum" | "bars";
+export type VisualizerType = "waveform" | "spectrum" | "bars" | "stereo";
 export type VisualizerPosition = "bottom-center" | "bottom-left" | "bottom-right";
+export type VisualizerOrientation = "horizontal" | "vertical";
 export type TextPosition = "top-left" | "top-center" | "bottom-left" | "center";
 export type LogoPosition = "top-left" | "top-right" | "bottom-left" | "bottom-right";
 export type CameraMove = "zoom-in" | "zoom-out" | "none";
@@ -65,6 +66,7 @@ export interface Settings {
     opacity: number;
     size: number;
     sensitivity: number;
+    orientation: VisualizerOrientation;
   };
   text: {
     enabled: boolean;
@@ -92,6 +94,10 @@ export interface AudioFrame {
   treble: number;
   spectrum: Float32Array; // 64 normalized bins
   waveform: Float32Array; // 256 samples, -1..1
+  levelLeft: number;
+  levelRight: number;
+  peakLeft: number;
+  peakRight: number;
 }
 
 export const SILENT_FRAME: AudioFrame = {
@@ -101,6 +107,10 @@ export const SILENT_FRAME: AudioFrame = {
   treble: 0,
   spectrum: new Float32Array(64),
   waveform: new Float32Array(256),
+  levelLeft: 0,
+  levelRight: 0,
+  peakLeft: 0,
+  peakRight: 0,
 };
 
 export interface RenderContext {
@@ -160,6 +170,7 @@ export const defaultSettings = (): Settings => ({
     opacity: 0.35,
     size: 0.5,
     sensitivity: 1,
+    orientation: "vertical",
   },
   text: {
     enabled: false,
@@ -240,6 +251,7 @@ export const presets: Preset[] = [
         opacity: 0.3,
         size: 0.5,
         sensitivity: 1,
+        orientation: "vertical",
       };
       s.camera = { move: "zoom-out", amount: 0.03, driftX: 0.1, driftY: 0.1 };
       return s;
