@@ -5,6 +5,19 @@ let tileFrames: (HTMLCanvasElement | OffscreenCanvas)[] = [];
 const TILE = 256;
 const VARIANTS = 8;
 
+/** Number of pre-rendered deterministic grain variants. */
+export const GRAIN_VARIANTS = VARIANTS;
+
+/**
+ * Shared grain tile lookup so other layers (frame border, CTA card) can reuse
+ * the exact same analog texture without duplicating the tile generator.
+ */
+export function grainTile(index: number): CanvasImageSource | null {
+  makeTiles();
+  const i = ((index % VARIANTS) + VARIANTS) % VARIANTS;
+  return tileFrames[i] ?? tile;
+}
+
 function mulberry32(a: number) {
   return () => {
     a |= 0;
@@ -43,9 +56,8 @@ function makeTiles() {
 export function drawGrain(r: RenderContext) {
   const g = r.settings.grain;
   if (!g.enabled || g.intensity <= 0) return;
-  makeTiles();
   const frame = Math.floor(r.time * 24) % VARIANTS;
-  const src = tileFrames[frame] ?? tile;
+  const src = grainTile(frame);
   if (!src) return;
   const { ctx } = r;
   ctx.save();

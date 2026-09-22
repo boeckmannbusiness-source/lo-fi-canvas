@@ -292,8 +292,8 @@ function drawTextLine(
   }
 }
 
-/** Draw text with per-character letter spacing. */
-function drawTextWithSpacing(
+/** Draw text with per-character letter spacing. Shared with the identity layers. */
+export function drawTextWithSpacing(
   ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
   text: string,
   x: number,

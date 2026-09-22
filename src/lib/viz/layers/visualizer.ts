@@ -1,3 +1,4 @@
+import { contentRect } from "../identity";
 import type { RenderContext } from "../types";
 
 /** Understated waveform / spectrum / bars / stereo level meter readout. */
@@ -10,7 +11,21 @@ export function drawVisualizer(r: RenderContext) {
   let cx = W / 2;
   if (v.position === "bottom-left") cx = W * 0.05 + w / 2;
   if (v.position === "bottom-right") cx = W * 0.95 - w / 2;
-  const cy = H * 0.88;
+  let cy = H * 0.88;
+  // When the artwork frame is on, lift the meter if its silhouette would slide
+  // under the print border. Frame-off keeps the original composition untouched.
+  if (r.settings.frame.enabled) {
+    const content = contentRect(r.settings.frame, W, H);
+    const bottomLimit = content.y + content.height;
+    const labelSize = Math.max(8, Math.round(10 * r.scale));
+    const half =
+      v.type === "stereo" && v.orientation !== "horizontal"
+        ? h * 1.75 + labelSize * 1.5
+        : v.type === "stereo"
+          ? Math.max(3, 4 * r.scale) + Math.max(6, 10 * r.scale) / 2
+          : h * 0.5;
+    cy = Math.min(cy, bottomLimit - half - Math.min(W, H) * 0.02);
+  }
   const gain = v.sensitivity;
 
   ctx.save();

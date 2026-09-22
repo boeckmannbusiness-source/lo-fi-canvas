@@ -16,7 +16,9 @@ import {
   typographyPresets,
   FONT_FAMILY_OPTIONS,
   FONT_WEIGHT_OPTIONS,
+  FRAME_PRESETS,
   type FontFamily,
+  type FramePreset,
 } from "@/lib/viz/types";
 import { RotateCcw } from "lucide-react";
 
@@ -36,6 +38,11 @@ export function SettingsPanel({
   onReset: () => void;
 }) {
   const sel = "h-8 w-[130px] text-xs";
+  const applyFramePreset = (id: FramePreset) => {
+    const preset = FRAME_PRESETS.find((p) => p.id === id);
+    if (!preset) return;
+    patch("frame", id === "custom" ? { preset: id } : { preset: id, color: preset.color });
+  };
   return (
     <div className="flex h-full flex-col overflow-y-auto">
       <Section
@@ -919,12 +926,289 @@ export function SettingsPanel({
           onChange={(v) => patch("logo", { margin: v })}
         />
       </Section>
+
+      {/* ── Video identity ──────────────────────────────────────────────── */}
+
+      <Section title="Video identity · Frame">
+        <Toggle
+          label="Enabled"
+          checked={settings.frame.enabled}
+          onChange={(v) => patch("frame", { enabled: v })}
+        />
+        <Row label="Preset">
+          <Select
+            value={settings.frame.preset}
+            onValueChange={(v) => applyFramePreset(v as FramePreset)}
+          >
+            <SelectTrigger className={sel} disabled={!settings.frame.enabled}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {FRAME_PRESETS.map((preset) => (
+                <SelectItem key={preset.id} value={preset.id} className="text-xs">
+                  {preset.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Row>
+        <HexColorInput
+          label="Color"
+          value={settings.frame.color}
+          onChange={(color) => patch("frame", { color, preset: "custom" })}
+        />
+        <Knob
+          label="Thickness"
+          value={settings.frame.thickness}
+          min={0.005}
+          max={0.1}
+          step={0.001}
+          disabled={!settings.frame.enabled}
+          onChange={(v) => patch("frame", { thickness: v })}
+          format={(v) => `${Math.round(v * 1080)}px`}
+        />
+        <Knob
+          label="Opacity"
+          value={settings.frame.opacity}
+          disabled={!settings.frame.enabled}
+          onChange={(v) => patch("frame", { opacity: v })}
+        />
+        <Knob
+          label="Inner shadow"
+          value={settings.frame.shadow}
+          disabled={!settings.frame.enabled}
+          onChange={(v) => patch("frame", { shadow: v })}
+        />
+        <Knob
+          label="Analog texture"
+          value={settings.frame.texture}
+          disabled={!settings.frame.enabled}
+          onChange={(v) => patch("frame", { texture: v })}
+        />
+      </Section>
+
+      <Section title="Video identity · Now playing">
+        <Toggle
+          label="Enabled"
+          checked={settings.nowPlaying.enabled}
+          onChange={(v) => patch("nowPlaying", { enabled: v })}
+        />
+        <Input
+          value={settings.nowPlaying.title}
+          placeholder="Track title"
+          className="h-8 text-xs"
+          disabled={!settings.nowPlaying.enabled}
+          onChange={(e) => patch("nowPlaying", { title: e.target.value })}
+        />
+        <Input
+          value={settings.nowPlaying.artist}
+          placeholder="Artist"
+          className="h-8 text-xs"
+          disabled={!settings.nowPlaying.enabled}
+          onChange={(e) => patch("nowPlaying", { artist: e.target.value })}
+        />
+        <Toggle
+          label="Show artist"
+          checked={settings.nowPlaying.showArtist}
+          onChange={(v) => patch("nowPlaying", { showArtist: v })}
+        />
+        <Row label="Position">
+          <Select
+            value={settings.nowPlaying.position}
+            onValueChange={(v) => patch("nowPlaying", { position: v as never })}
+          >
+            <SelectTrigger className={sel}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {[
+                ["top-right", "Top right"],
+                ["top-left", "Top left"],
+                ["bottom-right", "Bottom right"],
+                ["bottom-left", "Bottom left"],
+                ["custom", "Custom X / Y"],
+              ].map(([v, label]) => (
+                <SelectItem key={v} value={v ?? "top-right"} className="text-xs">
+                  {label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Row>
+        {settings.nowPlaying.position === "custom" && (
+          <>
+            <Knob
+              label="Custom X"
+              value={settings.nowPlaying.customX}
+              disabled={!settings.nowPlaying.enabled}
+              onChange={(v) => patch("nowPlaying", { customX: v })}
+              format={(v) => `${Math.round(v * 100)}%`}
+            />
+            <Knob
+              label="Custom Y"
+              value={settings.nowPlaying.customY}
+              disabled={!settings.nowPlaying.enabled}
+              onChange={(v) => patch("nowPlaying", { customY: v })}
+              format={(v) => `${Math.round(v * 100)}%`}
+            />
+          </>
+        )}
+        <Knob
+          label="Size"
+          value={settings.nowPlaying.size}
+          min={1}
+          max={8}
+          step={0.1}
+          disabled={!settings.nowPlaying.enabled}
+          onChange={(v) => patch("nowPlaying", { size: v })}
+          format={(v) => `${v.toFixed(1)}%`}
+        />
+        <Row label="Font family">
+          <Select
+            value={settings.nowPlaying.fontFamily}
+            onValueChange={(v) => patch("nowPlaying", { fontFamily: v as FontFamily })}
+          >
+            <SelectTrigger className="h-8 w-[150px] text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {FONT_FAMILY_OPTIONS.map((f) => (
+                <SelectItem key={f.value} value={f.value} className="text-xs">
+                  {f.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Row>
+        <HexColorInput
+          label="Color"
+          value={settings.nowPlaying.color}
+          onChange={(color) => patch("nowPlaying", { color })}
+        />
+        <Knob
+          label="Opacity"
+          value={settings.nowPlaying.opacity}
+          disabled={!settings.nowPlaying.enabled}
+          onChange={(v) => patch("nowPlaying", { opacity: v })}
+        />
+      </Section>
+
+      <Section title="Video identity · Call to action">
+        <Toggle
+          label="Enabled"
+          checked={settings.cta.enabled}
+          onChange={(v) => patch("cta", { enabled: v })}
+        />
+        <Knob
+          label="Start time"
+          value={settings.cta.startTime}
+          min={0}
+          max={600}
+          step={1}
+          disabled={!settings.cta.enabled}
+          onChange={(v) => patch("cta", { startTime: v })}
+          format={(v) => fmtSeconds(v)}
+        />
+        <Knob
+          label="Duration"
+          value={settings.cta.duration}
+          min={2}
+          max={10}
+          step={0.5}
+          disabled={!settings.cta.enabled}
+          onChange={(v) => patch("cta", { duration: v })}
+          format={(v) => `${v.toFixed(1)}s`}
+        />
+        <Input
+          value={settings.cta.text}
+          placeholder="LIKE & SUBSCRIBE"
+          className="h-8 text-xs"
+          disabled={!settings.cta.enabled}
+          onChange={(e) => patch("cta", { text: e.target.value })}
+        />
+        <Toggle
+          label="Show secondary line"
+          checked={settings.cta.showSubText}
+          onChange={(v) => patch("cta", { showSubText: v })}
+        />
+        <Input
+          value={settings.cta.subText}
+          placeholder="BERLIN B TAPES"
+          className="h-8 text-xs"
+          disabled={!settings.cta.enabled || !settings.cta.showSubText}
+          onChange={(e) => patch("cta", { subText: e.target.value })}
+        />
+        <Row label="Animation">
+          <Select
+            value={settings.cta.animationStyle}
+            onValueChange={(v) => patch("cta", { animationStyle: v as never })}
+          >
+            <SelectTrigger className={sel}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="slide-fade" className="text-xs">
+                Slide &amp; fade
+              </SelectItem>
+              <SelectItem value="fade" className="text-xs">
+                Fade
+              </SelectItem>
+              <SelectItem value="scale" className="text-xs">
+                Scale
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </Row>
+        <Row label="Background">
+          <Select
+            value={settings.cta.backgroundStyle}
+            onValueChange={(v) => patch("cta", { backgroundStyle: v as never })}
+          >
+            <SelectTrigger className={sel}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="title-card" className="text-xs">
+                Title card
+              </SelectItem>
+              <SelectItem value="dim" className="text-xs">
+                Dimmed artwork
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </Row>
+        <Toggle
+          label="Use frame color"
+          checked={settings.cta.useFrameColor}
+          onChange={(v) => patch("cta", { useFrameColor: v })}
+        />
+        {!settings.cta.useFrameColor && (
+          <HexColorInput
+            label="Accent color"
+            value={settings.cta.color}
+            onChange={(color) => patch("cta", { color })}
+          />
+        )}
+        <Knob
+          label="Opacity"
+          value={settings.cta.opacity}
+          disabled={!settings.cta.enabled}
+          onChange={(v) => patch("cta", { opacity: v })}
+        />
+      </Section>
+
       <div className="h-10" />
     </div>
   );
 }
 
 const HEX_COLOR = /^#[0-9a-f]{6}$/i;
+
+function fmtSeconds(total: number): string {
+  const s = Math.max(0, Math.round(total));
+  const m = Math.floor(s / 60);
+  return `${m}:${(s % 60).toString().padStart(2, "0")}`;
+}
 
 function HexColorInput({
   label,
