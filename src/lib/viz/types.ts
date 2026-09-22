@@ -12,6 +12,7 @@ export type TapePosition =
   | "bottom-right"
   | "center"
   | "custom";
+export type TapeStyle = "industrial-black" | "faded-archive" | "bone-label";
 export type VisualizerType = "waveform" | "spectrum" | "bars" | "stereo";
 export type VisualizerPosition = "bottom-center" | "bottom-left" | "bottom-right";
 export type VisualizerOrientation = "horizontal" | "vertical";
@@ -97,6 +98,7 @@ export interface Settings {
   };
   tape: {
     enabled: boolean;
+    style: TapeStyle;
     position: TapePosition;
     x: number;
     y: number;
@@ -226,6 +228,7 @@ export const defaultSettings = (): Settings => ({
   },
   tape: {
     enabled: false,
+    style: "industrial-black",
     position: "bottom-left",
     x: 0.18,
     y: 0.78,
@@ -376,6 +379,12 @@ export const presets: Preset[] = [
       return s;
     },
   },
+];
+
+export const tapeStylePresets: Array<{ id: TapeStyle; name: string }> = [
+  { id: "industrial-black", name: "Industrial Black" },
+  { id: "faded-archive", name: "Faded Archive" },
+  { id: "bone-label", name: "Bone Label" },
 ];
 
 /* ── Typography presets ───────────────────────────────────────────────────── */

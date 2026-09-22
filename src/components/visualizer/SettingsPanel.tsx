@@ -12,6 +12,7 @@ import { Knob, Row, Section, Toggle } from "./controls";
 import type { Settings } from "@/lib/viz/types";
 import {
   presets,
+  tapeStylePresets,
   typographyPresets,
   FONT_FAMILY_OPTIONS,
   FONT_WEIGHT_OPTIONS,
@@ -223,6 +224,23 @@ export function SettingsPanel({
           checked={settings.tape.enabled}
           onChange={(v) => patch("tape", { enabled: v })}
         />
+        <Row label="Style">
+          <Select
+            value={settings.tape.style}
+            onValueChange={(v) => patch("tape", { style: v as Settings["tape"]["style"] })}
+          >
+            <SelectTrigger className={sel} disabled={!settings.tape.enabled}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {tapeStylePresets.map((preset) => (
+                <SelectItem key={preset.id} value={preset.id} className="text-xs">
+                  {preset.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Row>
         <Row label="Position">
           <Select
             value={settings.tape.position}
