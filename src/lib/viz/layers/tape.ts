@@ -1,5 +1,46 @@
 import type { RenderContext } from "../types";
 
+const TAPE_STYLES = {
+  "industrial-black": {
+    shell: ["#343638", "#202225", "#111214", "#08090a"],
+    label: ["#444647", "#292b2d", "#17191b"],
+    labelInk: "rgba(226,221,208,0.93)",
+    secondaryInk: "rgba(184,176,158,0.62)",
+    artworkWash: "rgba(226,221,208,0.08)",
+    artworkDarkness: 0.16,
+    window: ["rgba(2,3,4,0.88)", "rgba(20,22,23,0.78)", "rgba(2,3,4,0.94)"],
+    edge: "rgba(226,221,208,0.18)",
+    textureLight: "rgba(226,221,208,0.045)",
+    textureDark: "rgba(0,0,0,0.14)",
+  },
+  "faded-archive": {
+    shell: ["#4a4944", "#32322f", "#20211f", "#121311"],
+    label: ["#a49d8d", "#817b6e", "#5e5b53"],
+    labelInk: "rgba(24,25,24,0.9)",
+    secondaryInk: "rgba(31,32,30,0.62)",
+    artworkWash: "rgba(205,196,175,0.16)",
+    artworkDarkness: 0.04,
+    window: ["rgba(12,13,12,0.84)", "rgba(42,42,38,0.76)", "rgba(8,9,8,0.92)"],
+    edge: "rgba(210,202,184,0.2)",
+    textureLight: "rgba(226,221,208,0.07)",
+    textureDark: "rgba(12,12,10,0.16)",
+  },
+  "bone-label": {
+    shell: ["#2c2e30", "#1a1c1e", "#0e0f11", "#060708"],
+    label: ["#e2ddd0", "#c8c0ae", "#a79f8e"],
+    labelInk: "rgba(17,18,20,0.94)",
+    secondaryInk: "rgba(35,36,35,0.64)",
+    artworkWash: "rgba(226,221,208,0.2)",
+    artworkDarkness: 0,
+    window: ["rgba(1,2,3,0.92)", "rgba(17,19,20,0.82)", "rgba(1,2,3,0.96)"],
+    edge: "rgba(226,221,208,0.24)",
+    textureLight: "rgba(226,221,208,0.055)",
+    textureDark: "rgba(0,0,0,0.16)",
+  },
+} as const;
+
+type TapePalette = (typeof TAPE_STYLES)[keyof typeof TAPE_STYLES];
+
 function roundedRect(
   ctx: RenderContext["ctx"],
   x: number,
@@ -34,6 +75,7 @@ function tapeCenter(r: RenderContext): { x: number; y: number } {
 
 function drawArtworkLabel(
   r: RenderContext,
+  palette: TapePalette,
   x: number,
   y: number,
   width: number,
@@ -42,9 +84,9 @@ function drawArtworkLabel(
 ) {
   const { ctx } = r;
   const paper = ctx.createLinearGradient(x, y, x + width, y + height);
-  paper.addColorStop(0, "#d7d1c3");
-  paper.addColorStop(0.55, "#b8b09e");
-  paper.addColorStop(1, "#8d887d");
+  paper.addColorStop(0, palette.label[0]);
+  paper.addColorStop(0.55, palette.label[1]);
+  paper.addColorStop(1, palette.label[2]);
   ctx.fillStyle = paper;
   roundedRect(ctx, x, y, width, height, radius);
   ctx.fill();
@@ -68,9 +110,9 @@ function drawArtworkLabel(
     sy = (r.imageHeight - sh) * 0.5;
   }
   ctx.drawImage(r.image, sx, sy, sw, sh, x, y, width, height);
-  ctx.fillStyle = `rgba(6,7,8,${Math.min(0.88, r.settings.tape.labelDarkness + 0.16)})`;
+  ctx.fillStyle = `rgba(6,7,8,${Math.min(0.88, r.settings.tape.labelDarkness + palette.artworkDarkness)})`;
   ctx.fillRect(x, y, width, height);
-  ctx.fillStyle = "rgba(226,221,208,0.08)";
+  ctx.fillStyle = palette.artworkWash;
   ctx.fillRect(x, y, width, height);
   ctx.restore();
 }
@@ -157,6 +199,7 @@ function drawReel(
 export function drawTape(r: RenderContext) {
   const tape = r.settings.tape;
   if (!tape.enabled) return;
+  const palette = TAPE_STYLES[tape.style];
 
   const { ctx } = r;
   const center = tapeCenter(r);
@@ -183,16 +226,16 @@ export function drawTape(r: RenderContext) {
   ctx.shadowBlur = height * 0.16;
   ctx.shadowOffsetY = height * 0.07;
   const shell = ctx.createLinearGradient(x, y, x + width, y + height);
-  shell.addColorStop(0, "#343638");
-  shell.addColorStop(0.18, "#202225");
-  shell.addColorStop(0.7, "#111214");
-  shell.addColorStop(1, "#08090a");
+  shell.addColorStop(0, palette.shell[0]);
+  shell.addColorStop(0.18, palette.shell[1]);
+  shell.addColorStop(0.7, palette.shell[2]);
+  shell.addColorStop(1, palette.shell[3]);
   ctx.fillStyle = shell;
   roundedRect(ctx, x, y, width, height, height * 0.072);
   ctx.fill();
   ctx.shadowColor = "transparent";
 
-  ctx.strokeStyle = "rgba(226,221,208,0.18)";
+  ctx.strokeStyle = palette.edge;
   ctx.lineWidth = Math.max(0.9, height * 0.007);
   roundedRect(ctx, x, y, width, height, height * 0.072);
   ctx.stroke();
@@ -213,8 +256,12 @@ export function drawTape(r: RenderContext) {
   const labelH = height * 0.22;
   const artX = x + width * 0.09;
   const artW = width * 0.39;
-  drawArtworkLabel(r, artX, labelY, artW, labelH, height * 0.018);
-  ctx.fillStyle = "rgba(184,176,158,0.14)";
+  drawArtworkLabel(r, palette, artX, labelY, artW, labelH, height * 0.018);
+  const labelPanel = ctx.createLinearGradient(x + width * 0.5, labelY, x + width * 0.9, labelY + labelH);
+  labelPanel.addColorStop(0, palette.label[0]);
+  labelPanel.addColorStop(0.55, palette.label[1]);
+  labelPanel.addColorStop(1, palette.label[2]);
+  ctx.fillStyle = labelPanel;
   roundedRect(ctx, x + width * 0.5, labelY, width * 0.4, labelH, height * 0.018);
   ctx.fill();
   ctx.strokeStyle = "rgba(226,221,208,0.16)";
@@ -223,10 +270,10 @@ export function drawTape(r: RenderContext) {
 
   ctx.textAlign = "right";
   ctx.textBaseline = "middle";
-  ctx.fillStyle = "rgba(226,221,208,0.93)";
+  ctx.fillStyle = palette.labelInk;
   ctx.font = `900 ${Math.max(8, height * 0.115)}px "Arial Narrow", "Helvetica Neue", sans-serif`;
   ctx.fillText("B TAPES", x + width * 0.865, labelY + labelH * 0.43);
-  ctx.fillStyle = "rgba(184,176,158,0.62)";
+  ctx.fillStyle = palette.secondaryInk;
   ctx.font = `700 ${Math.max(5, height * 0.034)}px monospace`;
   ctx.fillText("BERLIN  /  TYPE II  /  B-90", x + width * 0.865, labelY + labelH * 0.76);
 
@@ -236,9 +283,9 @@ export function drawTape(r: RenderContext) {
   const windowW = width * 0.77;
   const windowH = height * 0.32;
   const glass = ctx.createLinearGradient(windowX, windowY, windowX, windowY + windowH);
-  glass.addColorStop(0, "rgba(2,3,4,0.88)");
-  glass.addColorStop(0.55, "rgba(20,22,23,0.78)");
-  glass.addColorStop(1, "rgba(2,3,4,0.94)");
+  glass.addColorStop(0, palette.window[0]);
+  glass.addColorStop(0.55, palette.window[1]);
+  glass.addColorStop(1, palette.window[2]);
   ctx.fillStyle = glass;
   roundedRect(ctx, windowX, windowY, windowW, windowH, height * 0.045);
   ctx.fill();
@@ -296,7 +343,7 @@ export function drawTape(r: RenderContext) {
   for (const [sx, sy, sa] of screws) drawScrew(ctx, sx * width, sy * height, screwR, sa);
 
   ctx.textAlign = "left";
-  ctx.fillStyle = "rgba(184,176,158,0.5)";
+  ctx.fillStyle = palette.secondaryInk;
   ctx.font = `700 ${Math.max(4, height * 0.026)}px monospace`;
   ctx.fillText("A", x + width * 0.075, y + height * 0.91);
   ctx.textAlign = "right";
@@ -308,7 +355,7 @@ export function drawTape(r: RenderContext) {
     const tx = x + width * (0.055 + ((i * 47) % 89) / 100);
     const ty = y + height * (0.055 + ((i * 31) % 87) / 100);
     const len = width * (0.016 + (i % 4) * 0.009);
-    ctx.strokeStyle = i % 3 === 0 ? "rgba(226,221,208,0.045)" : "rgba(0,0,0,0.14)";
+    ctx.strokeStyle = i % 3 === 0 ? palette.textureLight : palette.textureDark;
     ctx.beginPath();
     ctx.moveTo(tx, ty);
     ctx.lineTo(tx + len, ty + height * 0.003);
