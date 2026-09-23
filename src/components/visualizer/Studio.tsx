@@ -277,10 +277,13 @@ export function Studio() {
     setExportStart(Date.now());
     try {
       const blob = await renderVideo({
-        width: 1920,
-        height: 1080,
-        fps: 30,
-        duration: duration || 60,
+        width: format.width,
+        height: format.height,
+        fps: format.fps,
+        duration: exportDuration,
+        maxDuration: format.maxDuration,
+        layout: format.layout,
+        bitrate: format.bitrate,
         settings,
         image,
         imageWidth: image.naturalWidth,
@@ -299,7 +302,7 @@ export function Studio() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${(audioName || "visualizer").replace(/\.[^.]+$/, "")}-1080p.mp4`;
+      a.download = `${(audioName || "visualizer").replace(/\.[^.]+$/, "")}-${format.width}x${format.height}.mp4`;
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 30000);
       setExportProgress(1);
@@ -318,8 +321,12 @@ export function Studio() {
   };
 
   const estFrames = useMemo(
-    () => Math.round((duration || 60) * 30),
-    [duration],
+    () => Math.round(exportDuration * format.fps),
+    [exportDuration, format.fps],
+  );
+  const estSize = useMemo(
+    () => estimateSizeMb(format, exportDuration),
+    [format, exportDuration],
   );
 
   return (
