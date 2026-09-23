@@ -78,6 +78,16 @@ export function Studio() {
   const [showSafeAreas, setShowSafeAreas] = useState(false);
   const format = EXPORT_FORMATS[formatId];
 
+  // Single source of truth for the export length. Landscape exports the full
+  // track; portrait is capped by the format (and re-clamped inside renderVideo).
+  const exportDuration = useMemo(
+    () =>
+      format.maxDuration === null
+        ? duration || 60
+        : clampDuration(format, portraitDuration),
+    [format, duration, portraitDuration],
+  );
+
 
   const [exporting, setExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
@@ -427,6 +437,8 @@ export function Studio() {
                   getTime={getTimeStable}
                   duration={duration}
                   quality={quality}
+                  format={format}
+                  showSafeAreas={showSafeAreas}
                 />
               ) : (
                 <div className="flex h-full w-full flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border/60 bg-card/40">
