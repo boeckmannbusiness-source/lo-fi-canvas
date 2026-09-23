@@ -8,12 +8,14 @@
  *   - rendering the same frame twice produces an identical canvas op sequence
  *     (preview === export, no hidden state)
  *   - a disabled CTA is byte-identical to the plain normal scene
+ *   - a fixed 1920×1080 fixture is locked to a known op count + hash, so an
+ *     unintended landscape composition change fails the suite
  *
  * Run with Bun (resolves the app's extensionless TS imports):
  *   bun scripts/render-smoke.ts
  */
-import { deepStrictEqual, ok } from "node:assert/strict";
-import { renderNormalScene, renderScene } from "../src/lib/viz/scene";
+import { deepStrictEqual, ok, strictEqual } from "node:assert/strict";
+import { layers, renderNormalScene, renderScene } from "../src/lib/viz/scene";
 import { SAFE_AREAS } from "../src/lib/viz/format";
 import { defaultSettings, type RenderContext, type Settings } from "../src/lib/viz/types";
 
@@ -284,6 +286,138 @@ check("frame disabled still renders the scene", () => {
   s.frame.enabled = false;
   const log = render(1920, 1080, 2, s);
   ok(log.length > 50);
+});
+
+/* ── Landscape regression lock ───────────────────────────────────────────── */
+
+/**
+ * A fixed 1920×1080 fixture with every identity system enabled, rendered
+ * through the real pipeline against the deterministic stub context. The op
+ * count and hash below are a regression lock: any unintended change to the
+ * landscape composition changes them. They are *not* pixel hashes, so they are
+ * identical on every machine — the stub never rasterizes.
+ */
+const LANDSCAPE = { width: 1920, height: 1080, time: 7.25, duration: 180 };
+const LANDSCAPE_OPS = 1017;
+const LANDSCAPE_HASH = "bbe42c68";
+
+function fixedLandscapeSettings(): Settings {
+  const s = baseSettings();
+  s.camera = { move: "zoom-in", amount: 0.03, driftX: 0.2, driftY: 0.1 };
+  s.background = { fit: "cover", vignette: 0.35, warmth: 0.12 };
+  s.cta.enabled = false; // normal-scene baseline
+  return s;
+}
+
+function renderFixedLandscape(): Call[] {
+  const log: Call[] = [];
+  renderScene({
+    ctx: makeCtx(log),
+    width: LANDSCAPE.width,
+    height: LANDSCAPE.height,
+    layout: "landscape",
+    safe: SAFE_AREAS.landscape,
+    time: LANDSCAPE.time,
+    duration: LANDSCAPE.duration,
+    audio: {
+      rms: 0.4,
+      bass: 0.5,
+      mid: 0.3,
+      treble: 0.2,
+      spectrum: new Float32Array(64).fill(0.4),
+      waveform: new Float32Array(256).fill(0.1),
+      levelLeft: 0.5,
+      levelRight: 0.5,
+      peakLeft: 0.6,
+      peakRight: 0.6,
+    },
+    settings: fixedLandscapeSettings(),
+    image: { width: 1400, height: 1400 } as unknown as CanvasImageSource,
+    imageWidth: 1400,
+    imageHeight: 1400,
+    logo: null,
+    logoWidth: 0,
+    logoHeight: 0,
+    scale: Math.min(LANDSCAPE.width, LANDSCAPE.height) / 1080,
+  });
+  return log;
+}
+
+/** FNV-1a over the serialized op sequence — stable, compact, cross-platform. */
+function hashOps(log: Call[]): string {
+  const serialized = JSON.stringify(log);
+  let h = 2166136261;
+  for (let i = 0; i < serialized.length; i++) {
+    h ^= serialized.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0).toString(16);
+}
+
+console.log("\nlandscape regression");
+
+check("fixed landscape fixture renders deterministically", () => {
+  deepStrictEqual(renderFixedLandscape(), renderFixedLandscape());
+});
+
+check("fixed landscape op sequence is locked", () => {
+  const log = renderFixedLandscape();
+  strictEqual(log.length, LANDSCAPE_OPS, `op count drifted (hash ${hashOps(log)})`);
+  strictEqual(hashOps(log), LANDSCAPE_HASH);
+});
+
+check("layer order is the canonical identity order", () => {
+  strictEqual(
+    layers.map((l) => l.name).join(","),
+    [
+      "drawBackground",
+      "drawVinyl",
+      "drawTape",
+      "drawRain",
+      "drawDust",
+      "drawFlicker",
+      "drawVisualizer",
+      "drawText",
+      "drawNowPlaying",
+      "drawLogo",
+      "drawFrame",
+      "drawGrain",
+    ].join(","),
+  );
+});
+
+check("identity layers render in the normal scene", () => {
+  const log = renderFixedLandscape();
+  ok(
+    log.some((c) => c[0] === "fill" && c[1] === "evenodd"),
+    "frame print band rendered",
+  );
+  ok(
+    log.some((c) => c[0] === "strokeRect"),
+    "frame hairline rendered",
+  );
+  ok(drawsText(log, "P"), "now playing label rendered");
+});
+
+check("landscape never applies the portrait background bias", () => {
+  const log = renderFixedLandscape();
+  const draw = log.find((c) => c[0] === "drawImage");
+  ok(draw, "background image drawn");
+  const cam = fixedLandscapeSettings().camera;
+  const driftX = Math.sin(LANDSCAPE.time * 0.012) * cam.driftX * 0.01 * LANDSCAPE.width;
+  const driftY = Math.cos(LANDSCAPE.time * 0.009) * cam.driftY * 0.01 * LANDSCAPE.height;
+  const dx = Number(draw[2]);
+  const dy = Number(draw[3]);
+  const dw = Number(draw[4]);
+  const dh = Number(draw[5]);
+  ok(
+    Math.abs(dx - ((LANDSCAPE.width - dw) / 2 + driftX)) < 1e-9,
+    "x is centred with drift only",
+  );
+  ok(
+    Math.abs(dy - ((LANDSCAPE.height - dh) / 2 + driftY)) < 1e-9,
+    "y has no portrait bias",
+  );
 });
 
 console.log(`\n${passed} passed, ${failed} failed\n`);
