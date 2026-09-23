@@ -41,7 +41,9 @@ export function drawBackground(r: RenderContext) {
     // Default 0.5 reproduces the previous centred crop in both orientations.
     const focusY = Math.max(0, Math.min(1, settings.background.focusY));
     const y =
-      dh > H ? (H - dh) * focusY + driftY : (H - dh) / 2 + driftY;
+      settings.background.fit === "cover" && dh > H
+        ? (H - dh) * focusY + driftY
+        : (H - dh) / 2 + driftY;
     ctx.drawImage(r.image, (W - dw) / 2 + driftX, y, dw, dh);
   }
 
