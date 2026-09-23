@@ -312,6 +312,7 @@ export function Studio() {
         duration: exportDuration,
         maxDuration: format.maxDuration,
         layout: format.layout,
+        safe: format.safe,
         bitrate: format.bitrate,
         settings,
         image,

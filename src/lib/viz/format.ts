@@ -11,14 +11,27 @@ export interface ExportFormat {
   height: number;
   fps: number;
   bitrate: number;
+  /**
+   * Content-safe insets as fractions of the canvas. This is composition data,
+   * not platform UI: the renderer only knows "keep content inside these
+   * margins" so it can stay generic across vertical video surfaces.
+   */
+  safe: SafeArea;
   /** null = use the full track duration */
   maxDuration: number | null;
   durationPresets: number[];
 }
 
-export const SAFE_AREAS: Record<LayoutMode, SafeArea> = {
+/**
+ * Content-safe insets per composition mode.
+ *
+ * Landscape keeps the historic 4% margin on every edge. Portrait reserves a
+ * generic vertical-video content band — extra room at the top for platform
+ * chrome and at the bottom for captions / action controls — without hardcoding
+ * any specific platform's UI dimensions.
+ */
+export const CONTENT_SAFE_AREAS: Record<LayoutMode, SafeArea> = {
   landscape: { top: 0.04, bottom: 0.04, left: 0.04, right: 0.04 },
-  // TikTok / Reels / Shorts UI: header on top, caption + action rail at the bottom.
   portrait: { top: 0.12, bottom: 0.2, left: 0.06, right: 0.06 },
 };
 
@@ -32,6 +45,7 @@ export const EXPORT_FORMATS: Record<ExportFormatId, ExportFormat> = {
     height: 1080,
     fps: 30,
     bitrate: 8_000_000,
+    safe: CONTENT_SAFE_AREAS.landscape,
     maxDuration: null,
     durationPresets: [],
   },
@@ -44,6 +58,7 @@ export const EXPORT_FORMATS: Record<ExportFormatId, ExportFormat> = {
     height: 1920,
     fps: 30,
     bitrate: 6_000_000,
+    safe: CONTENT_SAFE_AREAS.portrait,
     maxDuration: 60,
     durationPresets: [15, 30, 60],
   },
@@ -53,6 +68,11 @@ export const exportFormatList: ExportFormat[] = [
   EXPORT_FORMATS.landscape,
   EXPORT_FORMATS.portrait,
 ];
+
+/** Content-safe insets for a composition mode (used when no format is given). */
+export function safeAreaFor(layout: LayoutMode): SafeArea {
+  return CONTENT_SAFE_AREAS[layout];
+}
 
 /** Hard duration clamp — applied in the UI and again inside renderVideo. */
 export function clampDuration(format: ExportFormat, seconds: number): number {

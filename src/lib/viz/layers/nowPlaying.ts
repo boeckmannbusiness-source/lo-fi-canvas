@@ -11,7 +11,7 @@ const LABEL_TRACKING = 0.22;
  *
  * Deliberately quiet: a letter-spaced label, a hairline rule and — optionally —
  * a track title and artist. Anchored inside the frame opening, with portrait
- * padding so it never collides with the TikTok safe areas. Uses the existing
+ * padding so it never collides with the portrait content-safe band. Uses the existing
  * canvas font stack, so preview and export share identical text metrics.
  */
 export function drawNowPlaying(r: RenderContext) {

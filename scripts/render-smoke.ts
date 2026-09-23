@@ -16,7 +16,7 @@
  */
 import { deepStrictEqual, ok, strictEqual } from "node:assert/strict";
 import { layers, renderNormalScene, renderScene } from "../src/lib/viz/scene";
-import { SAFE_AREAS } from "../src/lib/viz/format";
+import { CONTENT_SAFE_AREAS } from "../src/lib/viz/format";
 import { defaultSettings, type RenderContext, type Settings } from "../src/lib/viz/types";
 
 type Call = [string, ...unknown[]];
@@ -155,7 +155,7 @@ function render(width: number, height: number, time: number, settings: Settings)
     width,
     height,
     layout: width >= height ? "landscape" : "portrait",
-    safe: SAFE_AREAS[width >= height ? "landscape" : "portrait"],
+    safe: CONTENT_SAFE_AREAS[width >= height ? "landscape" : "portrait"],
     time,
     duration: 200,
     audio: {
@@ -190,7 +190,7 @@ function renderNormal(width: number, height: number, time: number, settings: Set
     width,
     height,
     layout: width >= height ? "landscape" : "portrait",
-    safe: SAFE_AREAS[width >= height ? "landscape" : "portrait"],
+    safe: CONTENT_SAFE_AREAS[width >= height ? "landscape" : "portrait"],
     time,
     duration: 200,
     audio: {
@@ -316,7 +316,7 @@ function renderFixedLandscape(): Call[] {
     width: LANDSCAPE.width,
     height: LANDSCAPE.height,
     layout: "landscape",
-    safe: SAFE_AREAS.landscape,
+    safe: CONTENT_SAFE_AREAS.landscape,
     time: LANDSCAPE.time,
     duration: LANDSCAPE.duration,
     audio: {

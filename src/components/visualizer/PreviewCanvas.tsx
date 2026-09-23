@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { frameAt, type AudioAnalysis } from "@/lib/viz/analysis";
 import { renderScene } from "@/lib/viz/scene";
-import { SAFE_AREAS, type ExportFormat } from "@/lib/viz/format";
+import { type ExportFormat } from "@/lib/viz/format";
 import type { Settings } from "@/lib/viz/types";
 
 export function PreviewCanvas({
@@ -57,7 +57,7 @@ export function PreviewCanvas({
     }
     const ctx = canvas.getContext("2d", { alpha: false });
     if (!ctx) return;
-    const safe = SAFE_AREAS[layout];
+    const safe = format.safe;
     let raf = 0;
     const loop = () => {
       const img = imageRef.current;
@@ -104,7 +104,7 @@ export function PreviewCanvas({
     };
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
-  }, [quality, aspect, layout]);
+  }, [quality, aspect, layout, format]);
 
   return (
     <canvas

@@ -35,7 +35,7 @@ export function isPortrait(r: RenderContext): boolean {
 /**
  * Corner anchor for physical objects (vinyl, cassette).
  * Landscape keeps the historic inset fractions; portrait anchors inside the
- * safe rect so nothing lands under the platform UI.
+ * safe rect so nothing lands outside the content-safe band.
  */
 export function cornerAnchor(
   r: RenderContext,
