@@ -1,13 +1,19 @@
 import { ArrayBufferTarget, Muxer } from "mp4-muxer";
 import { frameAt, type AudioAnalysis } from "./analysis";
 import { renderScene } from "./scene";
-import type { Settings } from "./types";
+import { SAFE_AREAS } from "./format";
+import type { LayoutMode, SafeArea, Settings } from "./types";
 
 export interface ExportOptions {
   width: number;
   height: number;
   fps: number;
   duration: number;
+  /** hard cap enforced here, independent of any UI validation */
+  maxDuration?: number | null;
+  layout?: LayoutMode;
+  safe?: SafeArea;
+  bitrate?: number;
   settings: Settings;
   image: CanvasImageSource | null;
   imageWidth: number;
