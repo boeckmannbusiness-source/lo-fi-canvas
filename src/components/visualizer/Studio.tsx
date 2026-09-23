@@ -30,6 +30,15 @@ import { analyzeBuffer, type AudioAnalysis } from "@/lib/viz/analysis";
 import { isExportSupported, renderVideo } from "@/lib/viz/export";
 import { loadFonts } from "@/lib/viz/fonts";
 import { defaultSettings, presets, type Settings } from "@/lib/viz/types";
+import {
+  EXPORT_FORMATS,
+  clampDuration,
+  estimateSizeMb,
+  exportFormatList,
+  type ExportFormatId,
+} from "@/lib/viz/format";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Input } from "@/components/ui/input";
 
 const fmt = (s: number) => {
   if (!isFinite(s) || s < 0) s = 0;
