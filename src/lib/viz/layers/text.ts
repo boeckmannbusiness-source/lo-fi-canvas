@@ -157,7 +157,7 @@ function computePosition(
       break;
     case "center":
     default:
-      y = H / 2;
+      y = (safeT + safeB) / 2;
       break;
   }
 
@@ -195,7 +195,7 @@ function computePosition(
       break;
     case "center":
       x = W / 2;
-      y = H / 2;
+      y = (safeT + safeB) / 2;
       align = "center";
       break;
     case "custom":
