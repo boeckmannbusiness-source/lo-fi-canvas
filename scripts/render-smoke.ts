@@ -18,7 +18,11 @@ import { deepStrictEqual, ok, strictEqual } from "node:assert/strict";
 import { layers, renderNormalScene, renderScene } from "../src/lib/viz/scene";
 import { CONTENT_SAFE_AREAS } from "../src/lib/viz/format";
 import {
+  drawFrameVisualizer,
   drawVisualizer,
+  frameVisualizerGeometry,
+  frameWaveformSamples,
+  FRAME_VISUALIZER,
   visualizerBaseline,
   visualizerGeometry,
 } from "../src/lib/viz/layers/visualizer";
@@ -309,7 +313,10 @@ check("CTA composites over the artwork instead of replacing the scene", () => {
     log.some((c) => c[0] === "fill" && c[1] === "evenodd"),
     "frame print band still rendered behind the overlay",
   );
-  ok(log.some((c) => c[0] === "strokeRect"), "frame hairline still rendered");
+  ok(
+    log.some((c) => c[0] === "strokeRect"),
+    "frame hairline still rendered",
+  );
   ok(drawsText(log, "P"), "now playing still rendered behind the overlay");
   ok(drawsText(log, "L") && drawsText(log, "S"), "CTA overlay drawn on top");
 });
@@ -437,7 +444,7 @@ check("layer order is the canonical identity order", () => {
       "drawText",
       "drawNowPlaying",
       "drawLogo",
-      "drawFrame",
+      "drawFramedBorder",
       "drawGrain",
     ].join(","),
   );
@@ -467,14 +474,8 @@ check("landscape never applies the portrait background bias", () => {
   const dy = Number(draw[3]);
   const dw = Number(draw[4]);
   const dh = Number(draw[5]);
-  ok(
-    Math.abs(dx - ((LANDSCAPE.width - dw) / 2 + driftX)) < 1e-9,
-    "x is centred with drift only",
-  );
-  ok(
-    Math.abs(dy - ((LANDSCAPE.height - dh) / 2 + driftY)) < 1e-9,
-    "y has no portrait bias",
-  );
+  ok(Math.abs(dx - ((LANDSCAPE.width - dw) / 2 + driftX)) < 1e-9, "x is centred with drift only");
+  ok(Math.abs(dy - ((LANDSCAPE.height - dh) / 2 + driftY)) < 1e-9, "y has no portrait bias");
 });
 
 console.log("\nportrait typography");
@@ -580,10 +581,7 @@ check("portrait background focus is explicit and user-controlled", () => {
   const middle = renderFocus(0.5);
   const bottom = renderFocus(1);
   ok(top > bottom, "focus moves the visible crop window");
-  ok(
-    Math.abs(middle - (top + bottom) / 2) < 1e-9,
-    "0.5 is the centred crop",
-  );
+  ok(Math.abs(middle - (top + bottom) / 2) < 1e-9, "0.5 is the centred crop");
 });
 
 console.log("\nvisualizer placement");
@@ -673,9 +671,7 @@ function visualizerStyles(
   const log: Call[] = [];
   const rc = { ...visualizerCtx(1920, 1080, s), ctx: styleLogCtx(log) };
   drawVisualizer(rc);
-  return log
-    .filter((c) => c[0] === "fillStyle" || c[0] === "strokeStyle")
-    .map((c) => String(c[1]));
+  return log.filter((c) => c[0] === "fillStyle" || c[0] === "strokeStyle").map((c) => String(c[1]));
 }
 
 check("default visualizer is white", () => {
@@ -712,69 +708,118 @@ function frameVisualizer(
   thickness: number,
   type: Settings["visualizer"]["type"] = "bars",
   frameBand: Settings["visualizer"]["frameBand"] = "bottom",
+  position: Settings["visualizer"]["position"] = "bottom-center",
 ) {
   const s = baseSettings();
   s.visualizer.enabled = true;
   s.visualizer.type = type;
   s.visualizer.placement = "frame";
   s.visualizer.frameBand = frameBand;
+  s.visualizer.position = position;
   s.frame.thickness = thickness;
   const rc = visualizerCtx(width, height, s);
-  const geo = visualizerGeometry(rc);
+  const geo = frameVisualizerGeometry(rc)!;
   const bands = frameBands(s.frame, width, height)!;
   return { geo, bands, content: contentRect(s.frame, width, height) };
 }
 
-function boxOf(geo: { cx: number; cy: number; w: number; h: number }, type: string) {
-  const top = type === "spectrum" ? geo.cy - geo.h : geo.cy - geo.h / 2;
-  const bottom = type === "spectrum" ? geo.cy : geo.cy + geo.h / 2;
-  return { left: geo.cx - geo.w / 2, right: geo.cx + geo.w / 2, top, bottom };
-}
+const STAGES = [
+  [1920, 1080],
+  [1080, 1920],
+] as const;
 
-check("frame placement fits the readout inside the bottom band", () => {
-  for (const [w, h] of [
-    [1920, 1080],
-    [1080, 1920],
-  ] as const) {
-    const { geo, bands, content } = frameVisualizer(w, h, 0.038);
-    const box = boxOf(geo, "bars");
-    ok(geo.clip, "clipped to the band");
-    strictEqual(geo.clip!.y, bands.bottom.y);
-    ok(box.top >= bands.bottom.y - 1e-9, "above the outer canvas edge");
-    ok(box.bottom <= bands.bottom.y + bands.bottom.height + 1e-9, "inside the band");
-    ok(box.left >= 0 && box.right <= w, "inside the canvas horizontally");
-    ok(
-      box.top >= content.y + content.height - 1e-9,
-      "does not overlap the artwork opening",
-    );
+check("frame waveform stays inside the top and bottom bands", () => {
+  for (const [w, h] of STAGES) {
+    for (const band of ["top", "bottom"] as const) {
+      const { geo } = frameVisualizer(w, h, 0.038, "waveform", band);
+      const b = geo.band!;
+      const amp = geo.amplitude!;
+      ok(amp > 0, `${w}x${h} ${band}: has amplitude`);
+      ok(amp < b.height / 2, `${w}x${h} ${band}: leaves breathing room`);
+      ok(geo.cy - amp >= b.y - 1e-9, `${w}x${h} ${band}: envelope above band edge`);
+      ok(geo.cy + amp <= b.y + b.height + 1e-9, `${w}x${h} ${band}: envelope below band edge`);
+      // Never touches the canvas trim.
+      ok(geo.cx - geo.w / 2 > 0, `${w}x${h} ${band}: left trim margin`);
+      ok(geo.cx + geo.w / 2 < w, `${w}x${h} ${band}: right trim margin`);
+    }
   }
 });
 
-check("frame placement keeps the top band clear of the artwork", () => {
-  const { geo, bands, content } = frameVisualizer(1080, 1920, 0.05, "bars", "top");
-  const box = boxOf(geo, "bars");
-  ok(box.bottom <= content.y + 1e-9, "below the artwork opening");
-  ok(box.top >= bands.top.y - 1e-9);
+check("frame waveform clears the artwork opening", () => {
+  for (const [w, h] of STAGES) {
+    for (const band of ["top", "bottom"] as const) {
+      const { geo, content } = frameVisualizer(w, h, 0.05, "waveform", band);
+      const b = geo.band!;
+      if (band === "top") {
+        ok(b.y + b.height <= content.y + 1e-9, "band sits above the opening");
+        ok(geo.cy + geo.amplitude! <= content.y + 1e-9, "waveform above the opening");
+      } else {
+        ok(b.y >= content.y + content.height - 1e-9, "band sits below the opening");
+        ok(
+          geo.cy - geo.amplitude! >= content.y + content.height - 1e-9,
+          "waveform below the opening",
+        );
+      }
+    }
+  }
+});
+
+check("frame thickness drives a bounded amplitude", () => {
+  const thin = frameVisualizer(1080, 1920, 0.015, "waveform").geo;
+  const mid = frameVisualizer(1080, 1920, 0.038, "waveform").geo;
+  const thick = frameVisualizer(1080, 1920, 0.08, "waveform").geo;
+  ok(thin.amplitude! < mid.amplitude!, "thin frame -> restrained amplitude");
+  ok(mid.amplitude! < thick.amplitude!, "thicker frame -> larger amplitude");
+  for (const g of [thin, mid, thick]) {
+    ok(g.amplitude! <= g.band!.height / 2, "amplitude never exceeds the band");
+  }
+});
+
+check("frame waveform uses the available horizontal span", () => {
+  for (const [w, h] of STAGES) {
+    const { geo } = frameVisualizer(w, h, 0.038, "waveform");
+    const b = geo.band!;
+    const pad = b.height * FRAME_VISUALIZER.padX;
+    ok(Math.abs(geo.cx - geo.w / 2 - pad) < 1e-9, "left edge respects the trim margin");
+    ok(Math.abs(geo.cx + geo.w / 2 - (w - pad)) < 1e-9, "right edge respects the trim margin");
+    ok(geo.w > w * 0.85, `${w}x${h}: stretches across most of the band`);
+  }
+});
+
+check("frame placement supports left/right marks within the band", () => {
+  for (const position of ["bottom-left", "bottom-right"] as const) {
+    const { geo } = frameVisualizer(1920, 1080, 0.038, "waveform", "bottom", position);
+    const b = geo.band!;
+    ok(geo.cx - geo.w / 2 >= b.x - 1e-9, `${position}: inside left edge`);
+    ok(geo.cx + geo.w / 2 <= b.x + b.width + 1e-9, `${position}: inside right edge`);
+    ok(geo.w < 1920 * 0.6, `${position}: restrained share of the strip`);
+  }
+});
+
+check("every frame mode stays within the band envelope", () => {
+  for (const type of ["waveform", "bars", "spectrum", "stereo"] as const) {
+    for (const band of ["top", "bottom"] as const) {
+      const { geo } = frameVisualizer(1920, 1080, 0.038, type, band);
+      const b = geo.band!;
+      ok(geo.amplitude! > 0, `${type} ${band}: amplitude`);
+      ok(geo.amplitude! <= b.height / 2, `${type} ${band}: bounded`);
+      ok(geo.cy - geo.amplitude! >= b.y - 1e-9, `${type} ${band}: above`);
+      ok(geo.cy + geo.amplitude! <= b.y + b.height + 1e-9, `${type} ${band}: below`);
+    }
+  }
 });
 
 check("frame placement survives frame thickness changes", () => {
   for (const thickness of [0.015, 0.038, 0.08]) {
-    const { geo, bands, content } = frameVisualizer(1080, 1920, thickness);
-    const box = boxOf(geo, "waveform");
+    const { geo, bands, content } = frameVisualizer(1080, 1920, thickness, "waveform");
+    const box = {
+      top: geo.cy - geo.amplitude!,
+      bottom: geo.cy + geo.amplitude!,
+    };
     ok(box.top >= bands.bottom.y - 1e-9, `thickness ${thickness}: above canvas edge`);
-    ok(
-      box.top >= content.y + content.height - 1e-9,
-      `thickness ${thickness}: clear of artwork`,
-    );
+    ok(box.top >= content.y + content.height - 1e-9, `thickness ${thickness}: clear of artwork`);
     ok(geo.h > 0 && geo.w > 0, `thickness ${thickness}: has extent`);
   }
-});
-
-check("spectrum in frame placement stays within the band", () => {
-  const { geo, bands } = frameVisualizer(1920, 1080, 0.038, "spectrum");
-  const box = boxOf(geo, "spectrum");
-  ok(box.top >= bands.bottom.y - 1e-9);
-  ok(box.bottom <= bands.bottom.y + bands.bottom.height + 1e-9);
 });
 
 check("frame placement falls back to artwork when the frame is disabled", () => {
@@ -796,6 +841,120 @@ check("default placement keeps the historic artwork geometry", () => {
   strictEqual(s.visualizer.placement, "artwork");
   strictEqual(visualizerGeometry(rc).cy, visualizerBaseline(rc));
   strictEqual(visualizerGeometry(rc).clip, null);
+});
+
+check("frame placement is drawn by the dedicated layer, not the artwork layer", () => {
+  const s = baseSettings();
+  s.visualizer.enabled = true;
+  s.visualizer.type = "waveform";
+  s.visualizer.placement = "frame";
+  const artworkLog: Call[] = [];
+  drawVisualizer({ ...visualizerCtx(1920, 1080, s), ctx: makeCtx(artworkLog) });
+  strictEqual(artworkLog.length, 0, "artwork layer skips frame placement");
+
+  const frameLog: Call[] = [];
+  drawFrameVisualizer({ ...visualizerCtx(1920, 1080, s), ctx: makeCtx(frameLog) });
+  ok(frameLog.length > 0, "frame layer draws the readout");
+});
+
+check("artwork placement is ignored by the frame layer", () => {
+  const s = baseSettings();
+  s.visualizer.enabled = true;
+  s.visualizer.placement = "artwork";
+  const log: Call[] = [];
+  drawFrameVisualizer({ ...visualizerCtx(1920, 1080, s), ctx: makeCtx(log) });
+  strictEqual(log.length, 0);
+});
+
+check("frame visualizer composites on top of the printed band", () => {
+  const s = baseSettings();
+  s.visualizer.enabled = true;
+  s.visualizer.type = "waveform";
+  s.visualizer.placement = "frame";
+  s.visualizer.frameBand = "bottom";
+  s.cta.enabled = false;
+  const log: Call[] = [];
+  renderScene({ ...visualizerCtx(1920, 1080, s), ctx: makeCtx(log) });
+  const frameFill = log.reduce(
+    (last, c, i) => (c[0] === "fill" && c[1] === "evenodd" ? i : last),
+    -1,
+  );
+  ok(frameFill >= 0, "frame band was filled");
+  const strokesAfter = log.map((c, i) => (c[0] === "stroke" ? i : -1)).filter((i) => i > frameFill);
+  ok(strokesAfter.length > 0, "frame waveform stroked after the band");
+});
+
+check("frame waveform envelope is clamped even at high sensitivity", () => {
+  const s = baseSettings();
+  s.visualizer.enabled = true;
+  s.visualizer.type = "waveform";
+  s.visualizer.placement = "frame";
+  s.visualizer.frameBand = "bottom";
+  s.visualizer.sensitivity = 3;
+  const rc = visualizerCtx(1080, 1920, s);
+  rc.audio.waveform = new Float32Array(256).fill(1);
+  const log: Call[] = [];
+  rc.ctx = makeCtx(log);
+  drawFrameVisualizer(rc);
+  const geo = frameVisualizerGeometry(rc)!;
+  const band = geo.band!;
+  let points = 0;
+  for (const c of log) {
+    if (c[0] === "moveTo" || c[0] === "lineTo") {
+      points++;
+      const y = Number(c[2]);
+      ok(y >= band.y - 1e-9 && y <= band.y + band.height + 1e-9, `y ${y} inside band`);
+      ok(Math.abs(y - geo.cy) <= geo.amplitude! + 1e-9, `y ${y} within amplitude envelope`);
+    }
+  }
+  ok(points > 0, "waveform drawn");
+});
+
+check("frame waveform resampling is deterministic and bounded", () => {
+  const data = new Float32Array(256);
+  for (let i = 0; i < data.length; i++) data[i] = Math.sin(i * 0.5);
+  const a = frameWaveformSamples(data, 96);
+  const b = frameWaveformSamples(data, 96);
+  deepStrictEqual(a, b);
+  strictEqual(a.length, 96);
+  ok(Math.max(...a) <= 1 && Math.min(...a) >= -1, "values stay in range");
+});
+
+function frameVisualizerStyles(
+  colorPreset: Settings["visualizer"]["colorPreset"],
+  color = "#FFFFFF",
+  type: Settings["visualizer"]["type"] = "waveform",
+): string[] {
+  const s = baseSettings();
+  s.visualizer.enabled = true;
+  s.visualizer.type = type;
+  s.visualizer.placement = "frame";
+  s.visualizer.frameBand = "bottom";
+  s.visualizer.colorPreset = colorPreset;
+  s.visualizer.color = color;
+  const log: Call[] = [];
+  const rc = { ...visualizerCtx(1920, 1080, s), ctx: styleLogCtx(log) };
+  drawFrameVisualizer(rc);
+  return log.filter((c) => c[0] === "fillStyle" || c[0] === "strokeStyle").map((c) => String(c[1]));
+}
+
+check("frame visualizer uses the same resolved colours", () => {
+  ok(
+    frameVisualizerStyles("white").some((s) => s.startsWith("rgba(255,255,255,")),
+    "white",
+  );
+  ok(
+    frameVisualizerStyles("black").some((s) => s.startsWith("rgba(10,10,10,")),
+    "black",
+  );
+  ok(
+    frameVisualizerStyles("red").some((s) => s.startsWith("rgba(213,52,43,")),
+    "red",
+  );
+  ok(
+    frameVisualizerStyles("custom", "#12AB34").some((s) => s.startsWith("rgba(18,171,52,")),
+    "custom",
+  );
 });
 
 console.log("\ncustom positions");

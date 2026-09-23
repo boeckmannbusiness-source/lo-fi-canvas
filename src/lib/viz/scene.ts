@@ -9,12 +9,24 @@ import { drawNowPlaying } from "./layers/nowPlaying";
 import { drawText } from "./layers/text";
 import { drawTape } from "./layers/tape";
 import { drawVinyl } from "./layers/vinyl";
-import { drawVisualizer } from "./layers/visualizer";
+import { drawFrameVisualizer, drawVisualizer } from "./layers/visualizer";
 import { drawCtaScene } from "./layers/cta";
 import { ctaState } from "./identity";
 import type { RenderContext } from "./types";
 
 export type Layer = (r: RenderContext) => void;
+
+/**
+ * The printed border plus any readout printed onto it.
+ *
+ * The frame-band visualizer is composed into the frame pass rather than given
+ * its own entry so it renders *after* the band fill (the band must never paint
+ * over it) while the artwork path emits exactly the same canvas ops as before.
+ */
+const drawFramedBorder: Layer = (r) => {
+  drawFrame(r);
+  drawFrameVisualizer(r);
+};
 
 /** Composition order. Add new effects here — layers stay independent. */
 export const layers: Layer[] = [
@@ -28,7 +40,7 @@ export const layers: Layer[] = [
   drawText,
   drawNowPlaying,
   drawLogo,
-  drawFrame,
+  drawFramedBorder,
   drawGrain,
 ];
 
