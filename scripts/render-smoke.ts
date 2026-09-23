@@ -420,5 +420,65 @@ check("landscape never applies the portrait background bias", () => {
   );
 });
 
+console.log("\nportrait typography");
+
+/** Capture the resolved pixel size of the title's font at draw time. */
+function titleFontPx(width: number, height: number): number {
+  const log: Call[] = [];
+  const ctx = makeCtx(log) as unknown as {
+    font: string;
+    fillText: (t: string, x: number, y: number) => void;
+  };
+  const fonts: Array<[string, string]> = [];
+  const originalFill = ctx.fillText;
+  ctx.fillText = (text: string, x: number, y: number) => {
+    fonts.push([String(text), String(ctx.font)]);
+    originalFill(text, x, y);
+  };
+  const settings = baseSettings();
+  settings.cta.enabled = false;
+  renderScene({
+    ctx: ctx as unknown as RenderContext["ctx"],
+    width,
+    height,
+    layout: width >= height ? "landscape" : "portrait",
+    safe: CONTENT_SAFE_AREAS[width >= height ? "landscape" : "portrait"],
+    time: 3,
+    duration: 200,
+    audio: {
+      rms: 0.4,
+      bass: 0.5,
+      mid: 0.3,
+      treble: 0.2,
+      spectrum: new Float32Array(64).fill(0.4),
+      waveform: new Float32Array(256).fill(0.1),
+      levelLeft: 0.5,
+      levelRight: 0.5,
+      peakLeft: 0.6,
+      peakRight: 0.6,
+    },
+    settings,
+    image: null,
+    imageWidth: 0,
+    imageHeight: 0,
+    logo: null,
+    logoWidth: 0,
+    logoHeight: 0,
+    scale: Math.min(width, height) / 1080,
+  });
+  const hit = fonts.find(([text]) => text === settings.text.title);
+  ok(hit, "title rendered");
+  const match = /([\d.]+)px/.exec(hit![1]);
+  ok(match, "font size resolved");
+  return Number(match![1]);
+}
+
+check("portrait type keeps the landscape physical size", () => {
+  const landscape = titleFontPx(1920, 1080);
+  const portrait = titleFontPx(1080, 1920);
+  strictEqual(portrait, landscape);
+  ok(landscape > 0);
+});
+
 console.log(`\n${passed} passed, ${failed} failed\n`);
 if (failed > 0) process.exit(1);

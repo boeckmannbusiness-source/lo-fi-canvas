@@ -1,14 +1,20 @@
 import type { RenderContext, Settings } from "../types";
 import { resolveFontFamily, resolveWeight } from "../fonts";
-import { isPortrait } from "../layout";
+import { isPortrait, shortEdge } from "../layout";
 
 /**
- * Type sizing basis. Landscape keeps "% of canvas width" exactly as before.
- * Portrait uses a widened basis so a 7% title stays physically large on a
- * 1080-wide frame instead of shrinking with the narrower canvas.
+ * The 1920×1080 design is 16:9, and landscape typography has always been sized
+ * as a percentage of the canvas width. Portrait keeps the same *physical* type
+ * size as that reference: the basis is the width a 16:9 frame would have
+ * across the canvas short edge. At 16:9 this equals the canvas width, so the
+ * landscape branch is untouched; in portrait it resolves the 1080px-wide frame
+ * against the 1920px design width instead of shrinking the type with the
+ * narrower canvas.
  */
+const REFERENCE_ASPECT = 16 / 9;
+
 function typeBase(r: RenderContext): number {
-  return isPortrait(r) ? r.width * 1.45 : r.width;
+  return isPortrait(r) ? shortEdge(r) * REFERENCE_ASPECT : r.width;
 }
 
 /**
