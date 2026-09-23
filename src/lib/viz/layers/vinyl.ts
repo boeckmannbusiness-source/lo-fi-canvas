@@ -1,4 +1,4 @@
-import { cornerAnchor, isPortrait, safeRect, shortEdge } from "../layout";
+import { cornerAnchor, shortEdge } from "../layout";
 import type { RenderContext } from "../types";
 
 function vinylCenter(r: RenderContext): { x: number; y: number } {
@@ -10,15 +10,9 @@ function vinylCenter(r: RenderContext): { x: number; y: number } {
     case "bottom-left":
     case "bottom-right":
       return cornerAnchor(r, v.position, m, m);
-    default: {
-      if (isPortrait(r)) {
-        // Custom coordinates stay relative, but clamp into the safe band so a
-        // landscape-authored position never lands under the platform UI.
-        const rect = safeRect(r);
-        return { x: v.x * r.width, y: rect.top + v.y * rect.height };
-      }
+    default:
+      // Explicit custom coordinates are authoritative in every format.
       return { x: v.x * r.width, y: v.y * r.height };
-    }
   }
 }
 

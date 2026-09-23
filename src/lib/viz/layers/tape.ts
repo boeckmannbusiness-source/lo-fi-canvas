@@ -67,13 +67,9 @@ function tapeCenter(r: RenderContext): { x: number; y: number } {
         x: r.width * 0.5,
         y: isPortrait(r) ? safeRect(r).top + safeRect(r).height * 0.5 : r.height * 0.5,
       };
-    case "custom": {
-      if (isPortrait(r)) {
-        const rect = safeRect(r);
-        return { x: tape.x * r.width, y: rect.top + tape.y * rect.height };
-      }
+    case "custom":
+      // Explicit custom coordinates are authoritative in every format.
       return { x: tape.x * r.width, y: tape.y * r.height };
-    }
   }
 }
 

@@ -586,5 +586,21 @@ check("landscape visualizer baseline is unchanged at 0.88H", () => {
   strictEqual(visualizerBaseline(rc), 1080 * 0.88);
 });
 
+console.log("\ncustom positions");
+
+check("portrait honours explicit custom vinyl coordinates", () => {
+  const s = baseSettings();
+  s.vinyl.enabled = true;
+  s.vinyl.position = "custom";
+  s.vinyl.x = 0.3;
+  s.vinyl.y = 0.7;
+  const log = render(1080, 1920, 2, s);
+  // Vinyl is the first layer that translates, using its own centre.
+  const translate = log.find((c) => c[0] === "translate");
+  ok(translate, "vinyl translated");
+  strictEqual(Number(translate![1]), 0.3 * 1080);
+  strictEqual(Number(translate![2]), 0.7 * 1920);
+});
+
 console.log(`\n${passed} passed, ${failed} failed\n`);
 if (failed > 0) process.exit(1);
