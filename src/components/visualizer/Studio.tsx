@@ -30,6 +30,15 @@ import { analyzeBuffer, type AudioAnalysis } from "@/lib/viz/analysis";
 import { isExportSupported, renderVideo } from "@/lib/viz/export";
 import { loadFonts } from "@/lib/viz/fonts";
 import { defaultSettings, presets, type Settings } from "@/lib/viz/types";
+import {
+  EXPORT_FORMATS,
+  clampDuration,
+  estimateSizeMb,
+  exportFormatList,
+  type ExportFormatId,
+} from "@/lib/viz/format";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Input } from "@/components/ui/input";
 
 const fmt = (s: number) => {
   if (!isFinite(s) || s < 0) s = 0;
@@ -64,6 +73,11 @@ export function Studio() {
   const [muted, setMuted] = useState(false);
   const [analyzing, setAnalyzing] = useState<number | null>(null);
   const [quality, setQuality] = useState(540);
+  const [formatId, setFormatId] = useState<ExportFormatId>("landscape");
+  const [portraitDuration, setPortraitDuration] = useState(30);
+  const [showSafeAreas, setShowSafeAreas] = useState(false);
+  const format = EXPORT_FORMATS[formatId];
+
 
   const [exporting, setExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
@@ -263,10 +277,13 @@ export function Studio() {
     setExportStart(Date.now());
     try {
       const blob = await renderVideo({
-        width: 1920,
-        height: 1080,
-        fps: 30,
-        duration: duration || 60,
+        width: format.width,
+        height: format.height,
+        fps: format.fps,
+        duration: exportDuration,
+        maxDuration: format.maxDuration,
+        layout: format.layout,
+        bitrate: format.bitrate,
         settings,
         image,
         imageWidth: image.naturalWidth,
@@ -285,7 +302,7 @@ export function Studio() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${(audioName || "visualizer").replace(/\.[^.]+$/, "")}-1080p.mp4`;
+      a.download = `${(audioName || "visualizer").replace(/\.[^.]+$/, "")}-${format.width}x${format.height}.mp4`;
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 30000);
       setExportProgress(1);
@@ -304,8 +321,12 @@ export function Studio() {
   };
 
   const estFrames = useMemo(
-    () => Math.round((duration || 60) * 30),
-    [duration],
+    () => Math.round(exportDuration * format.fps),
+    [exportDuration, format.fps],
+  );
+  const estSize = useMemo(
+    () => estimateSizeMb(format, exportDuration),
+    [format, exportDuration],
   );
 
   return (

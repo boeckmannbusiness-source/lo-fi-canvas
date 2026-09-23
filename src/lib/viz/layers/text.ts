@@ -1,8 +1,15 @@
 import type { RenderContext, Settings } from "../types";
 import { resolveFontFamily, resolveWeight } from "../fonts";
+import { isPortrait } from "../layout";
 
-/** Safe-area margin as fraction of canvas width. */
-const SAFE_MARGIN = 0.04;
+/**
+ * Type sizing basis. Landscape keeps "% of canvas width" exactly as before.
+ * Portrait uses a widened basis so a 7% title stays physically large on a
+ * 1080-wide frame instead of shrinking with the narrower canvas.
+ */
+function typeBase(r: RenderContext): number {
+  return isPortrait(r) ? r.width * 1.45 : r.width;
+}
 
 /**
  * Premium typography layer for BERLIN B TAPES.
@@ -21,11 +28,10 @@ export function drawText(r: RenderContext) {
   const { ctx, width: W, height: H } = r;
 
   // ── Compute positions ───────────────────────────────────────────────────
-  const safeL = W * SAFE_MARGIN;
-  const safeR = W * (1 - SAFE_MARGIN);
-  const safeT = H * SAFE_MARGIN;
-  const safeB = H * (1 - SAFE_MARGIN);
-  const safeW = safeR - safeL;
+  const safeL = W * r.safe.left;
+  const safeR = W * (1 - r.safe.right);
+  const safeT = H * r.safe.top;
+  const safeB = H * (1 - r.safe.bottom);
 
   const { x: baseX, y: baseY, align } = computePosition(t, W, H, safeL, safeR, safeT, safeB);
 
@@ -35,8 +41,9 @@ export function drawText(r: RenderContext) {
   const subtitleFontWeight = resolveWeight(t.fontFamily, t.subtitleWeight);
 
   // ── Resolve legacy fontSize (0–1 range) to percentage ────────────────────
-  const titleSizePx = resolveFontSize(t.fontSize, W);
-  const subtitleSizePx = resolveFontSize(t.subtitleSize, W);
+  const base = typeBase(r);
+  const titleSizePx = resolveFontSize(t.fontSize, base);
+  const subtitleSizePx = resolveFontSize(t.subtitleSize, base);
 
   ctx.save();
 
@@ -150,7 +157,7 @@ function computePosition(
       break;
     case "center":
     default:
-      y = H / 2;
+      y = (safeT + safeB) / 2;
       break;
   }
 
@@ -188,7 +195,7 @@ function computePosition(
       break;
     case "center":
       x = W / 2;
-      y = H / 2;
+      y = (safeT + safeB) / 2;
       align = "center";
       break;
     case "custom":
@@ -292,8 +299,8 @@ function drawTextLine(
   }
 }
 
-/** Draw text with per-character letter spacing. Shared with the identity layers. */
-export function drawTextWithSpacing(
+/** Draw text with per-character letter spacing. */
+function drawTextWithSpacing(
   ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
   text: string,
   x: number,

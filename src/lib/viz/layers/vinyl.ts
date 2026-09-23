@@ -1,3 +1,4 @@
+import { cornerAnchor, isPortrait, safeRect, shortEdge } from "../layout";
 import type { RenderContext } from "../types";
 
 function vinylCenter(r: RenderContext): { x: number; y: number } {
@@ -5,15 +6,19 @@ function vinylCenter(r: RenderContext): { x: number; y: number } {
   const m = 0.18;
   switch (v.position) {
     case "top-left":
-      return { x: m * r.width, y: m * r.height };
     case "top-right":
-      return { x: (1 - m) * r.width, y: m * r.height };
     case "bottom-left":
-      return { x: m * r.width, y: (1 - m) * r.height };
     case "bottom-right":
-      return { x: (1 - m) * r.width, y: (1 - m) * r.height };
-    default:
+      return cornerAnchor(r, v.position, m, m);
+    default: {
+      if (isPortrait(r)) {
+        // Custom coordinates stay relative, but clamp into the safe band so a
+        // landscape-authored position never lands under the platform UI.
+        const rect = safeRect(r);
+        return { x: v.x * r.width, y: rect.top + v.y * rect.height };
+      }
       return { x: v.x * r.width, y: v.y * r.height };
+    }
   }
 }
 
@@ -23,7 +28,7 @@ export function drawVinyl(r: RenderContext) {
   if (!v.enabled) return;
   const { ctx } = r;
   const { x, y } = vinylCenter(r);
-  const radius = v.size * r.height * 0.5;
+  const radius = v.size * shortEdge(r) * 0.5;
   const reactive = v.audioReactive ? 1 + r.audio.bass * 0.018 : 1;
   const angle = ((r.time * v.rpm) / 60) * Math.PI * 2;
 

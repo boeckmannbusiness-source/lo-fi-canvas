@@ -1,13 +1,19 @@
 import { ArrayBufferTarget, Muxer } from "mp4-muxer";
 import { frameAt, type AudioAnalysis } from "./analysis";
 import { renderScene } from "./scene";
-import type { Settings } from "./types";
+import { SAFE_AREAS } from "./format";
+import type { LayoutMode, SafeArea, Settings } from "./types";
 
 export interface ExportOptions {
   width: number;
   height: number;
   fps: number;
   duration: number;
+  /** hard cap enforced here, independent of any UI validation */
+  maxDuration?: number | null;
+  layout?: LayoutMode;
+  safe?: SafeArea;
+  bitrate?: number;
   settings: Settings;
   image: CanvasImageSource | null;
   imageWidth: number;
@@ -133,7 +139,13 @@ function waitForQueue(
 
 /** Frame-by-frame offline render to an MP4 (H.264 + AAC when available). */
 export async function renderVideo(opts: ExportOptions): Promise<Blob> {
-  const { width, height, fps, duration, signal } = opts;
+  const { width, height, fps, signal } = opts;
+  const layout: LayoutMode = opts.layout ?? (height > width ? "portrait" : "landscape");
+  const safe = opts.safe ?? SAFE_AREAS[layout];
+  const cap = opts.maxDuration ?? null;
+  const requested = Number.isFinite(opts.duration) && opts.duration > 0 ? opts.duration : 1;
+  const duration = cap === null ? requested : Math.min(requested, cap);
+  const bitrate = opts.bitrate ?? 8_000_000;
   const totalFrames = Math.max(1, Math.round(duration * fps));
 
   const videoCodec = await pickVideoCodec(width, height, fps);
@@ -176,7 +188,7 @@ export async function renderVideo(opts: ExportOptions): Promise<Blob> {
     codec: videoCodec.codec,
     width,
     height,
-    bitrate: 8_000_000,
+    bitrate,
     framerate: fps,
     ...(videoCodec.muxer === "avc" ? { avc: { format: "avc" as const } } : {}),
   });
@@ -196,6 +208,8 @@ export async function renderVideo(opts: ExportOptions): Promise<Blob> {
     ctx,
     width,
     height,
+    layout,
+    safe,
     time: 0,
     duration,
     audio: frameAt(opts.analysis, 0),
@@ -206,7 +220,7 @@ export async function renderVideo(opts: ExportOptions): Promise<Blob> {
     logo: opts.logo,
     logoWidth: opts.logoWidth,
     logoHeight: opts.logoHeight,
-    scale: height / 1080,
+    scale: Math.min(width, height) / 1080,
   };
 
   try {

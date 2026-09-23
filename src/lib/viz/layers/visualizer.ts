@@ -1,4 +1,4 @@
-import { contentRect } from "../identity";
+import { isPortrait, safeRect, shortEdge } from "../layout";
 import type { RenderContext } from "../types";
 
 /** Understated waveform / spectrum / bars / stereo level meter readout. */
@@ -6,26 +6,16 @@ export function drawVisualizer(r: RenderContext) {
   const v = r.settings.visualizer;
   if (!v.enabled || v.opacity <= 0) return;
   const { ctx, width: W, height: H } = r;
-  const w = W * (0.25 + v.size * 0.45);
-  const h = H * (0.04 + v.size * 0.08);
+  const portrait = isPortrait(r);
+  // Amplitude is sized off the short edge so the readout stays understated on
+  // a tall canvas; width stays proportional to the frame.
+  const w = W * (portrait ? 0.4 + v.size * 0.45 : 0.25 + v.size * 0.45);
+  const h = shortEdge(r) * (0.04 + v.size * 0.08);
   let cx = W / 2;
   if (v.position === "bottom-left") cx = W * 0.05 + w / 2;
   if (v.position === "bottom-right") cx = W * 0.95 - w / 2;
-  let cy = H * 0.88;
-  // When the artwork frame is on, lift the meter if its silhouette would slide
-  // under the print border. Frame-off keeps the original composition untouched.
-  if (r.settings.frame.enabled) {
-    const content = contentRect(r.settings.frame, W, H);
-    const bottomLimit = content.y + content.height;
-    const labelSize = Math.max(8, Math.round(10 * r.scale));
-    const half =
-      v.type === "stereo" && v.orientation !== "horizontal"
-        ? h * 1.75 + labelSize * 1.5
-        : v.type === "stereo"
-          ? Math.max(3, 4 * r.scale) + Math.max(6, 10 * r.scale) / 2
-          : h * 0.5;
-    cy = Math.min(cy, bottomLimit - half - Math.min(W, H) * 0.02);
-  }
+  // Portrait: sit above the caption / action-rail zone instead of at 0.88H.
+  const cy = portrait ? safeRect(r).bottom - h * 1.2 : H * 0.88;
   const gain = v.sensitivity;
 
   ctx.save();

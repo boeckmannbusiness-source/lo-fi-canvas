@@ -259,10 +259,23 @@ export const SILENT_FRAME: AudioFrame = {
   peakRight: 0,
 };
 
+/** Composition mode of the target canvas. */
+export type LayoutMode = "landscape" | "portrait";
+
+/** Safe-area insets as fractions of the canvas. Composition only — never drawn. */
+export interface SafeArea {
+  top: number;
+  bottom: number;
+  left: number;
+  right: number;
+}
+
 export interface RenderContext {
   ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
   width: number;
   height: number;
+  layout: LayoutMode;
+  safe: SafeArea;
   /** playback time in seconds */
   time: number;
   /** total duration in seconds (fallback 300) */
@@ -275,7 +288,7 @@ export interface RenderContext {
   logo: CanvasImageSource | null;
   logoWidth: number;
   logoHeight: number;
-  /** scale factor relative to 1920x1080 reference */
+  /** hairline scale factor: short canvas edge / 1080 (1.0 at 1920×1080) */
   scale: number;
 }
 
