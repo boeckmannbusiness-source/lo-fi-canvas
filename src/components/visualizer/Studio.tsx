@@ -26,6 +26,8 @@ import {
 } from "lucide-react";
 import { PreviewCanvas } from "./PreviewCanvas";
 import { SettingsPanel } from "./SettingsPanel";
+import { UserPresets } from "./UserPresets";
+import type { PresetSettings } from "@/lib/presets";
 import { analyzeBuffer, type AudioAnalysis } from "@/lib/viz/analysis";
 import { isExportSupported, renderVideo } from "@/lib/viz/export";
 import { loadFonts } from "@/lib/viz/fonts";
@@ -173,6 +175,20 @@ export function Studio() {
     const p = presets.find((x) => x.id === presetId);
     setSettings(p ? p.apply(defaultSettings()) : defaultSettings());
   };
+
+  // Restore a user-saved preset: creative settings plus the export format and
+  // portrait duration it was captured with. Purely a state update, so the
+  // preview refreshes through the normal render path.
+  const applyUserPreset = useCallback((preset: PresetSettings) => {
+    setSettings(preset.settings);
+    setPresetId("custom");
+    setFormatId(preset.formatId);
+    setPortraitDuration(preset.portraitDuration);
+    const nextFormat = EXPORT_FORMATS[preset.formatId];
+    const matchesPreset = nextFormat.durationPresets.includes(preset.portraitDuration);
+    setCustomMode(!matchesPreset);
+    setCustomDuration(String(preset.portraitDuration));
+  }, []);
 
   const loadImage = (file: File) => {
     if (!/image\/(png|jpeg|jpg)/.test(file.type)) {
@@ -441,6 +457,17 @@ export function Studio() {
                 </button>
               ))}
             </div>
+          </div>
+          <div className="border-t border-border/60 px-4 py-4">
+            <h3 className="mb-3 text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+              Saved presets
+            </h3>
+            <UserPresets
+              settings={settings}
+              formatId={formatId}
+              portraitDuration={portraitDuration}
+              onApply={applyUserPreset}
+            />
           </div>
         </aside>
 
