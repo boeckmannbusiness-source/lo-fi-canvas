@@ -28,11 +28,10 @@ export function drawText(r: RenderContext) {
   const { ctx, width: W, height: H } = r;
 
   // ── Compute positions ───────────────────────────────────────────────────
-  const safeL = W * SAFE_MARGIN;
-  const safeR = W * (1 - SAFE_MARGIN);
-  const safeT = H * SAFE_MARGIN;
-  const safeB = H * (1 - SAFE_MARGIN);
-  const safeW = safeR - safeL;
+  const safeL = W * r.safe.left;
+  const safeR = W * (1 - r.safe.right);
+  const safeT = H * r.safe.top;
+  const safeB = H * (1 - r.safe.bottom);
 
   const { x: baseX, y: baseY, align } = computePosition(t, W, H, safeL, safeR, safeT, safeB);
 
