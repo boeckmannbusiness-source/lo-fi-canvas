@@ -3,14 +3,16 @@ import type {
   CtaBackgroundStyle,
   FramePreset,
   NowPlayingPosition,
+  VisualizerColorPreset,
 } from "./identity";
 
-export { FRAME_PRESETS } from "./identity";
+export { FRAME_PRESETS, VISUALIZER_COLOR_PRESETS } from "./identity";
 export type {
   CtaAnimationStyle,
   CtaBackgroundStyle,
   FramePreset,
   NowPlayingPosition,
+  VisualizerColorPreset,
 } from "./identity";
 
 export type BackgroundFit = "cover" | "contain" | "fill";
@@ -138,6 +140,10 @@ export interface Settings {
     size: number;
     sensitivity: number;
     orientation: VisualizerOrientation;
+    /** palette entry for the readout colour */
+    colorPreset: VisualizerColorPreset;
+    /** resolved when colorPreset === "custom" */
+    color: string;
   };
   text: {
     enabled: boolean;
@@ -333,6 +339,8 @@ export const defaultSettings = (): Settings => ({
     size: 0.5,
     sensitivity: 1,
     orientation: "vertical",
+    colorPreset: "white",
+    color: "#FFFFFF",
   },
   text: {
     enabled: false,
@@ -477,6 +485,7 @@ export const presets: Preset[] = [
       s.grain = { enabled: true, intensity: 0.07 };
       s.flicker = { enabled: true, intensity: 0.03, speed: 0.35 };
       s.visualizer = {
+        ...s.visualizer,
         enabled: true,
         type: "waveform",
         position: "bottom-center",

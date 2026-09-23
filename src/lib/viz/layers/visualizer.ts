@@ -1,4 +1,4 @@
-import { contentRect } from "../identity";
+import { contentRect, hexToRgba, resolveVisualizerColor } from "../identity";
 import { isPortrait, safeRect, shortEdge } from "../layout";
 import type { RenderContext } from "../types";
 
@@ -17,11 +17,13 @@ export function drawVisualizer(r: RenderContext) {
   if (v.position === "bottom-right") cx = W * 0.95 - w / 2;
   const cy = visualizerBaseline(r);
   const gain = v.sensitivity;
+  // One resolved colour for every mode — no per-mode hardcoded white.
+  const color = resolveVisualizerColor(v);
 
   ctx.save();
   ctx.globalAlpha = v.opacity;
-  ctx.strokeStyle = "rgba(255,255,255,0.85)";
-  ctx.fillStyle = "rgba(255,255,255,0.8)";
+  ctx.strokeStyle = hexToRgba(color, 0.85);
+  ctx.fillStyle = hexToRgba(color, 0.8);
   ctx.lineWidth = Math.max(1, 1.6 * r.scale);
   ctx.lineJoin = "round";
   ctx.lineCap = "round";
@@ -51,7 +53,7 @@ export function drawVisualizer(r: RenderContext) {
     ctx.globalAlpha = v.opacity;
     ctx.stroke();
   } else if (v.type === "stereo") {
-    drawStereoMeter(r, cx, cy, w, h, gain);
+    drawStereoMeter(r, cx, cy, w, h, gain, color);
   } else {
     // "bars" — minimal bars with improved perceptual normalization
     const data = r.audio.spectrum;
@@ -125,6 +127,7 @@ function drawStereoMeter(
   w: number,
   h: number,
   gain: number,
+  color: string,
 ) {
   const { ctx, scale } = r;
   const levelL = Math.min(1, r.audio.levelLeft * gain);
@@ -134,12 +137,12 @@ function drawStereoMeter(
 
   const isVertical = r.settings.visualizer.orientation !== "horizontal";
 
-  // Colors — warm white, vintage equipment style
-  const barColor = "rgba(255,248,235,0.88)";
-  const peakColor = "rgba(255,220,160,0.95)";
-  const peakHoldColor = "rgba(255,235,190,0.8)";
-  const labelColor = "rgba(255,248,235,0.6)";
-  const trackBg = "rgba(255,255,255,0.06)";
+  // Vintage studio hardware, tinted by the resolved visualizer colour.
+  const barColor = hexToRgba(color, 0.88);
+  const peakColor = hexToRgba(color, 0.95);
+  const peakHoldColor = hexToRgba(color, 0.8);
+  const labelColor = hexToRgba(color, 0.6);
+  const trackBg = hexToRgba(color, 0.06);
 
   const fontSize = Math.max(8, Math.round(10 * scale));
   ctx.font = `500 ${fontSize}px ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace`;

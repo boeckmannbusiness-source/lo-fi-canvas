@@ -21,6 +21,8 @@ import {
   hexToRgba,
   nowPlayingLayout,
   resolveFrameColor,
+  resolveVisualizerColor,
+  VISUALIZER_COLOR_PRESETS,
 } from "../src/lib/viz/identity.ts";
 import { alignmentRect, centerAnchor, cornerAnchor } from "../src/lib/viz/layout.ts";
 import { CONTENT_SAFE_AREAS } from "../src/lib/viz/format.ts";
@@ -199,6 +201,34 @@ check("custom position is expressed as a fraction of the opening", () => {
   strictEqual(layout.align, "center");
   strictEqual(layout.x, rect.x + rect.width / 2);
   strictEqual(layout.y, rect.y + rect.height / 2);
+});
+
+console.log("\nvisualizer colour");
+
+check("defaults to white when the setting is absent", () => {
+  strictEqual(resolveVisualizerColor({}), "#FFFFFF");
+  strictEqual(resolveVisualizerColor({ colorPreset: "white" }), "#FFFFFF");
+});
+
+check("resolves the named presets", () => {
+  strictEqual(resolveVisualizerColor({ colorPreset: "black" }), "#0A0A0A");
+  strictEqual(resolveVisualizerColor({ colorPreset: "red" }), "#D5342B");
+  strictEqual(resolveVisualizerColor({ colorPreset: "dark-red" }), "#7A1F1A");
+  strictEqual(resolveVisualizerColor({ colorPreset: "gray" }), "#9A9A94");
+});
+
+check("custom passes the hex through", () => {
+  strictEqual(resolveVisualizerColor({ colorPreset: "custom", color: "#12AB34" }), "#12AB34");
+});
+
+check("every palette entry resolves to a valid hex", () => {
+  for (const preset of VISUALIZER_COLOR_PRESETS) {
+    const hex = resolveVisualizerColor({
+      colorPreset: preset.id,
+      color: preset.id === "custom" ? "#010203" : undefined,
+    });
+    ok(/^#[0-9a-f]{6}$/i.test(hex), `${preset.id} -> ${hex}`);
+  }
 });
 
 console.log("\nalignment anchors");

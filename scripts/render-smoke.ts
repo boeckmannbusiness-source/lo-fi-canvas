@@ -17,7 +17,7 @@
 import { deepStrictEqual, ok, strictEqual } from "node:assert/strict";
 import { layers, renderNormalScene, renderScene } from "../src/lib/viz/scene";
 import { CONTENT_SAFE_AREAS } from "../src/lib/viz/format";
-import { visualizerBaseline } from "../src/lib/viz/layers/visualizer";
+import { drawVisualizer, visualizerBaseline } from "../src/lib/viz/layers/visualizer";
 import { contentRect } from "../src/lib/viz/identity";
 import { defaultSettings, type RenderContext, type Settings } from "../src/lib/viz/types";
 
@@ -584,6 +584,69 @@ check("landscape visualizer baseline is unchanged at 0.88H", () => {
   s.visualizer.type = "bars";
   const rc = visualizerCtx(1920, 1080, s);
   strictEqual(visualizerBaseline(rc), 1080 * 0.88);
+});
+
+console.log("\nvisualizer colour");
+
+/** Context that records fill/stroke style assignments as canvas ops. */
+function styleLogCtx(log: Call[]): RenderContext["ctx"] {
+  const ctx = makeCtx(log) as unknown as Record<string, unknown>;
+  for (const prop of ["fillStyle", "strokeStyle"]) {
+    let value: unknown = ctx[prop];
+    Object.defineProperty(ctx, prop, {
+      configurable: true,
+      get: () => value,
+      set: (next: unknown) => {
+        value = next;
+        log.push([prop, next]);
+      },
+    });
+  }
+  return ctx as unknown as RenderContext["ctx"];
+}
+
+function visualizerStyles(
+  type: Settings["visualizer"]["type"],
+  colorPreset: Settings["visualizer"]["colorPreset"],
+  color = "#FFFFFF",
+): string[] {
+  const s = baseSettings();
+  s.visualizer.enabled = true;
+  s.visualizer.type = type;
+  s.visualizer.colorPreset = colorPreset;
+  s.visualizer.color = color;
+  const log: Call[] = [];
+  const rc = { ...visualizerCtx(1920, 1080, s), ctx: styleLogCtx(log) };
+  drawVisualizer(rc);
+  return log
+    .filter((c) => c[0] === "fillStyle" || c[0] === "strokeStyle")
+    .map((c) => String(c[1]));
+}
+
+check("default visualizer is white", () => {
+  const styles = visualizerStyles("bars", "white");
+  ok(styles.includes("rgba(255,255,255,0.85)"), `stroke ${styles.join(", ")}`);
+  ok(styles.includes("rgba(255,255,255,0.8)"));
+});
+
+check("black / red / custom hex reach every mode", () => {
+  for (const type of ["waveform", "spectrum", "bars", "stereo"] as const) {
+    const black = visualizerStyles(type, "black");
+    ok(
+      black.some((s) => s.startsWith("rgba(10,10,10,")),
+      `${type} uses the black preset (${black.join(", ")})`,
+    );
+    const red = visualizerStyles(type, "red");
+    ok(
+      red.some((s) => s.startsWith("rgba(213,52,43,")),
+      `${type} uses the red preset (${red.join(", ")})`,
+    );
+    const custom = visualizerStyles(type, "custom", "#12AB34");
+    ok(
+      custom.some((s) => s.startsWith("rgba(18,171,52,")),
+      `${type} uses the custom hex (${custom.join(", ")})`,
+    );
+  }
 });
 
 console.log("\ncustom positions");

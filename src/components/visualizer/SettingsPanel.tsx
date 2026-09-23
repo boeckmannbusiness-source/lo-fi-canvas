@@ -17,8 +17,10 @@ import {
   FONT_FAMILY_OPTIONS,
   FONT_WEIGHT_OPTIONS,
   FRAME_PRESETS,
+  VISUALIZER_COLOR_PRESETS,
   type FontFamily,
   type FramePreset,
+  type VisualizerColorPreset,
 } from "@/lib/viz/types";
 import { RotateCcw } from "lucide-react";
 
@@ -42,6 +44,14 @@ export function SettingsPanel({
     const preset = FRAME_PRESETS.find((p) => p.id === id);
     if (!preset) return;
     patch("frame", id === "custom" ? { preset: id } : { preset: id, color: preset.color });
+  };
+  const applyVisualizerColor = (id: VisualizerColorPreset) => {
+    const preset = VISUALIZER_COLOR_PRESETS.find((p) => p.id === id);
+    if (!preset) return;
+    patch(
+      "visualizer",
+      id === "custom" ? { colorPreset: id } : { colorPreset: id, color: preset.color },
+    );
   };
   return (
     <div className="flex h-full flex-col overflow-y-auto">
@@ -440,6 +450,30 @@ export function SettingsPanel({
             </SelectContent>
           </Select>
         </Row>
+        <Row label="Color">
+          <Select
+            value={settings.visualizer.colorPreset}
+            onValueChange={(v) => applyVisualizerColor(v as VisualizerColorPreset)}
+          >
+            <SelectTrigger className={sel}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {VISUALIZER_COLOR_PRESETS.map((preset) => (
+                <SelectItem key={preset.id} value={preset.id} className="text-xs">
+                  {preset.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Row>
+        {settings.visualizer.colorPreset === "custom" && (
+          <HexColorInput
+            label="Custom color"
+            value={settings.visualizer.color}
+            onChange={(color) => patch("visualizer", { color, colorPreset: "custom" })}
+          />
+        )}
         <Row label="Orientation">
           <Select
             value={settings.visualizer.orientation}

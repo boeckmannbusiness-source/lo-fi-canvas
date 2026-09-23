@@ -86,6 +86,44 @@ export function contentRect(frame: FrameLike, width: number, height: number): Re
   };
 }
 
+/* ── Visualizer colour ───────────────────────────────────────────────────── */
+
+export type VisualizerColorPreset =
+  | "white"
+  | "black"
+  | "red"
+  | "dark-red"
+  | "gray"
+  | "custom";
+
+export interface VisualizerColorPresetOption {
+  id: VisualizerColorPreset;
+  name: string;
+  color: string;
+}
+
+/** Single source of truth for the visualizer palette. */
+export const VISUALIZER_COLOR_PRESETS: VisualizerColorPresetOption[] = [
+  { id: "white", name: "White", color: "#FFFFFF" },
+  { id: "black", name: "Black", color: "#0A0A0A" },
+  { id: "red", name: "Red", color: "#D5342B" },
+  { id: "dark-red", name: "Dark Red", color: "#7A1F1A" },
+  { id: "gray", name: "Gray", color: "#9A9A94" },
+  { id: "custom", name: "Custom", color: "#FFFFFF" },
+];
+
+/**
+ * Resolve the active visualizer colour. Defaults to white when the setting is
+ * absent, so projects created before the colour system keep rendering exactly
+ * as they did.
+ */
+export function resolveVisualizerColor(v: { colorPreset?: string; color?: string }): string {
+  const preset = v.colorPreset ?? "white";
+  if (preset === "custom") return v.color ?? "#FFFFFF";
+  const match = VISUALIZER_COLOR_PRESETS.find((p) => p.id === preset);
+  return match ? match.color : (v.color ?? "#FFFFFF");
+}
+
 /* ── Now playing ─────────────────────────────────────────────────────────── */
 
 export type NowPlayingPosition =
