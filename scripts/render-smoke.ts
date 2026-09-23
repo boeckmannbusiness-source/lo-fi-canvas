@@ -304,7 +304,7 @@ const LANDSCAPE_HASH = "bbe42c68";
 function fixedLandscapeSettings(): Settings {
   const s = baseSettings();
   s.camera = { move: "zoom-in", amount: 0.03, driftX: 0.2, driftY: 0.1 };
-  s.background = { fit: "cover", vignette: 0.35, warmth: 0.12 };
+  s.background = { fit: "cover", vignette: 0.35, warmth: 0.12, focusY: 0.5 };
   s.cta.enabled = false; // normal-scene baseline
   return s;
 }
@@ -478,6 +478,55 @@ check("portrait type keeps the landscape physical size", () => {
   const portrait = titleFontPx(1080, 1920);
   strictEqual(portrait, landscape);
   ok(landscape > 0);
+});
+
+check("portrait background focus is explicit and user-controlled", () => {
+  const renderFocus = (focusY: number) => {
+    const log: Call[] = [];
+    const settings = baseSettings();
+    settings.cta.enabled = false;
+    settings.background = { fit: "cover", vignette: 0.35, warmth: 0.12, focusY };
+    renderScene({
+      ctx: makeCtx(log),
+      width: 1080,
+      height: 1920,
+      layout: "portrait",
+      safe: CONTENT_SAFE_AREAS.portrait,
+      time: 0,
+      duration: 200,
+      audio: {
+        rms: 0.4,
+        bass: 0.5,
+        mid: 0.3,
+        treble: 0.2,
+        spectrum: new Float32Array(64).fill(0.4),
+        waveform: new Float32Array(256).fill(0.1),
+        levelLeft: 0.5,
+        levelRight: 0.5,
+        peakLeft: 0.6,
+        peakRight: 0.6,
+      },
+      settings,
+      image: { width: 1400, height: 1400 } as unknown as CanvasImageSource,
+      imageWidth: 1400,
+      imageHeight: 1400,
+      logo: null,
+      logoWidth: 0,
+      logoHeight: 0,
+      scale: 1,
+    });
+    const draw = log.find((c) => c[0] === "drawImage");
+    ok(draw, "background drawn");
+    return Number(draw![3]);
+  };
+  const top = renderFocus(0);
+  const middle = renderFocus(0.5);
+  const bottom = renderFocus(1);
+  ok(top > bottom, "focus moves the visible crop window");
+  ok(
+    Math.abs(middle - (top + bottom) / 2) < 1e-9,
+    "0.5 is the centred crop",
+  );
 });
 
 console.log(`\n${passed} passed, ${failed} failed\n`);

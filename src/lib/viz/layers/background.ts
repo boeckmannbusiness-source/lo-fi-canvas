@@ -35,16 +35,14 @@ export function drawBackground(r: RenderContext) {
     const over = 1.04 * scale;
     dw *= over;
     dh *= over;
-    // Portrait crops a wide artwork hard; bias the visible window slightly
-    // upward so the subject (usually centre-upper) survives the crop.
-    const bias = r.layout === "portrait" ? Math.max(0, dh - H) * 0.12 : 0;
-    ctx.drawImage(
-      r.image,
-      (W - dw) / 2 + driftX,
-      (H - dh) / 2 + driftY + bias,
-      dw,
-      dh,
-    );
+    // Focal crop. `focusY` is a persistent user setting (0 = top, 1 = bottom,
+    // 0.5 = centred) applied only when the cover fit actually overflows
+    // vertically; contain / fill keep their historic centred placement.
+    // Default 0.5 reproduces the previous centred crop in both orientations.
+    const focusY = Math.max(0, Math.min(1, settings.background.focusY));
+    const y =
+      dh > H ? (H - dh) * focusY + driftY : (H - dh) / 2 + driftY;
+    ctx.drawImage(r.image, (W - dw) / 2 + driftX, y, dw, dh);
   }
 
   const warmth = settings.background.warmth;

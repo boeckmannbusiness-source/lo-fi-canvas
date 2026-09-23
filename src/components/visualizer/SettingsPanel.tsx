@@ -147,6 +147,12 @@ export function SettingsPanel({
           max={0.5}
           onChange={(v) => patch("background", { warmth: v })}
         />
+        <Knob
+          label="Artwork vertical focus"
+          value={settings.background.focusY}
+          onChange={(v) => patch("background", { focusY: v })}
+          format={(v) => `${Math.round(v * 100)}%`}
+        />
       </Section>
 
       <Section title="Vinyl">

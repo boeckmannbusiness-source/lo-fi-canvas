@@ -99,6 +99,8 @@ export interface Settings {
     fit: BackgroundFit;
     vignette: number;
     warmth: number;
+    /** vertical focal point for the cover crop: 0 = top edge, 1 = bottom edge */
+    focusY: number;
   };
   vinyl: {
     enabled: boolean;
@@ -294,7 +296,7 @@ export interface RenderContext {
 
 export const defaultSettings = (): Settings => ({
   camera: { move: "zoom-in", amount: 0.03, driftX: 0.2, driftY: 0.1 },
-  background: { fit: "cover", vignette: 0.35, warmth: 0.12 },
+  background: { fit: "cover", vignette: 0.35, warmth: 0.12, focusY: 0.5 },
   vinyl: {
     enabled: true,
     position: "bottom-right",
