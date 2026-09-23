@@ -35,7 +35,16 @@ export function drawBackground(r: RenderContext) {
     const over = 1.04 * scale;
     dw *= over;
     dh *= over;
-    ctx.drawImage(r.image, (W - dw) / 2 + driftX, (H - dh) / 2 + driftY, dw, dh);
+    // Portrait crops a wide artwork hard; bias the visible window slightly
+    // upward so the subject (usually centre-upper) survives the crop.
+    const bias = r.layout === "portrait" ? Math.max(0, dh - H) * 0.12 : 0;
+    ctx.drawImage(
+      r.image,
+      (W - dw) / 2 + driftX,
+      (H - dh) / 2 + driftY + bias,
+      dw,
+      dh,
+    );
   }
 
   const warmth = settings.background.warmth;

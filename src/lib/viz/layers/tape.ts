@@ -1,3 +1,4 @@
+import { cornerAnchor, isPortrait, safeRect } from "../layout";
 import type { RenderContext } from "../types";
 
 const TAPE_STYLES = {
@@ -55,21 +56,24 @@ function roundedRect(
 
 function tapeCenter(r: RenderContext): { x: number; y: number } {
   const tape = r.settings.tape;
-  const marginX = r.width * 0.18;
-  const marginY = r.height * 0.22;
   switch (tape.position) {
     case "top-left":
-      return { x: marginX, y: marginY };
     case "top-right":
-      return { x: r.width - marginX, y: marginY };
     case "bottom-left":
-      return { x: marginX, y: r.height - marginY };
     case "bottom-right":
-      return { x: r.width - marginX, y: r.height - marginY };
+      return cornerAnchor(r, tape.position, 0.18, 0.22);
     case "center":
-      return { x: r.width * 0.5, y: r.height * 0.5 };
-    case "custom":
+      return {
+        x: r.width * 0.5,
+        y: isPortrait(r) ? safeRect(r).top + safeRect(r).height * 0.5 : r.height * 0.5,
+      };
+    case "custom": {
+      if (isPortrait(r)) {
+        const rect = safeRect(r);
+        return { x: tape.x * r.width, y: rect.top + tape.y * rect.height };
+      }
       return { x: tape.x * r.width, y: tape.y * r.height };
+    }
   }
 }
 
