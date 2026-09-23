@@ -17,8 +17,12 @@
 import { deepStrictEqual, ok, strictEqual } from "node:assert/strict";
 import { layers, renderNormalScene, renderScene } from "../src/lib/viz/scene";
 import { CONTENT_SAFE_AREAS } from "../src/lib/viz/format";
-import { drawVisualizer, visualizerBaseline } from "../src/lib/viz/layers/visualizer";
-import { contentRect } from "../src/lib/viz/identity";
+import {
+  drawVisualizer,
+  visualizerBaseline,
+  visualizerGeometry,
+} from "../src/lib/viz/layers/visualizer";
+import { contentRect, frameBands } from "../src/lib/viz/identity";
 import { defaultSettings, type RenderContext, type Settings } from "../src/lib/viz/types";
 
 type Call = [string, ...unknown[]];
@@ -647,6 +651,100 @@ check("black / red / custom hex reach every mode", () => {
       `${type} uses the custom hex (${custom.join(", ")})`,
     );
   }
+});
+
+console.log("\nframe visualizer");
+
+function frameVisualizer(
+  width: number,
+  height: number,
+  thickness: number,
+  type: Settings["visualizer"]["type"] = "bars",
+  frameBand: Settings["visualizer"]["frameBand"] = "bottom",
+) {
+  const s = baseSettings();
+  s.visualizer.enabled = true;
+  s.visualizer.type = type;
+  s.visualizer.placement = "frame";
+  s.visualizer.frameBand = frameBand;
+  s.frame.thickness = thickness;
+  const rc = visualizerCtx(width, height, s);
+  const geo = visualizerGeometry(rc);
+  const bands = frameBands(s.frame, width, height)!;
+  return { geo, bands, content: contentRect(s.frame, width, height) };
+}
+
+function boxOf(geo: { cx: number; cy: number; w: number; h: number }, type: string) {
+  const top = type === "spectrum" ? geo.cy - geo.h : geo.cy - geo.h / 2;
+  const bottom = type === "spectrum" ? geo.cy : geo.cy + geo.h / 2;
+  return { left: geo.cx - geo.w / 2, right: geo.cx + geo.w / 2, top, bottom };
+}
+
+check("frame placement fits the readout inside the bottom band", () => {
+  for (const [w, h] of [
+    [1920, 1080],
+    [1080, 1920],
+  ] as const) {
+    const { geo, bands, content } = frameVisualizer(w, h, 0.038);
+    const box = boxOf(geo, "bars");
+    ok(geo.clip, "clipped to the band");
+    strictEqual(geo.clip!.y, bands.bottom.y);
+    ok(box.top >= bands.bottom.y - 1e-9, "above the outer canvas edge");
+    ok(box.bottom <= bands.bottom.y + bands.bottom.height + 1e-9, "inside the band");
+    ok(box.left >= 0 && box.right <= w, "inside the canvas horizontally");
+    ok(
+      box.top >= content.y + content.height - 1e-9,
+      "does not overlap the artwork opening",
+    );
+  }
+});
+
+check("frame placement keeps the top band clear of the artwork", () => {
+  const { geo, bands, content } = frameVisualizer(1080, 1920, 0.05, "bars", "top");
+  const box = boxOf(geo, "bars");
+  ok(box.bottom <= content.y + 1e-9, "below the artwork opening");
+  ok(box.top >= bands.top.y - 1e-9);
+});
+
+check("frame placement survives frame thickness changes", () => {
+  for (const thickness of [0.015, 0.038, 0.08]) {
+    const { geo, bands, content } = frameVisualizer(1080, 1920, thickness);
+    const box = boxOf(geo, "waveform");
+    ok(box.top >= bands.bottom.y - 1e-9, `thickness ${thickness}: above canvas edge`);
+    ok(
+      box.top >= content.y + content.height - 1e-9,
+      `thickness ${thickness}: clear of artwork`,
+    );
+    ok(geo.h > 0 && geo.w > 0, `thickness ${thickness}: has extent`);
+  }
+});
+
+check("spectrum in frame placement stays within the band", () => {
+  const { geo, bands } = frameVisualizer(1920, 1080, 0.038, "spectrum");
+  const box = boxOf(geo, "spectrum");
+  ok(box.top >= bands.bottom.y - 1e-9);
+  ok(box.bottom <= bands.bottom.y + bands.bottom.height + 1e-9);
+});
+
+check("frame placement falls back to artwork when the frame is disabled", () => {
+  const s = baseSettings();
+  s.visualizer.enabled = true;
+  s.visualizer.placement = "frame";
+  s.frame.enabled = false;
+  const rc = visualizerCtx(1080, 1920, s);
+  const geo = visualizerGeometry(rc);
+  strictEqual(geo.clip, null);
+  strictEqual(geo.cy, visualizerBaseline(rc));
+});
+
+check("default placement keeps the historic artwork geometry", () => {
+  const s = baseSettings();
+  s.visualizer.enabled = true;
+  s.visualizer.type = "bars";
+  const rc = visualizerCtx(1920, 1080, s);
+  strictEqual(s.visualizer.placement, "artwork");
+  strictEqual(visualizerGeometry(rc).cy, visualizerBaseline(rc));
+  strictEqual(visualizerGeometry(rc).clip, null);
 });
 
 console.log("\ncustom positions");

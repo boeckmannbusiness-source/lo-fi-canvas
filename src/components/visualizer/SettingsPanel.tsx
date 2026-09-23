@@ -474,6 +474,44 @@ export function SettingsPanel({
             onChange={(color) => patch("visualizer", { color, colorPreset: "custom" })}
           />
         )}
+        <Row label="Placement">
+          <Select
+            value={settings.visualizer.placement}
+            onValueChange={(v) => patch("visualizer", { placement: v as never })}
+          >
+            <SelectTrigger className={sel}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="artwork" className="text-xs">
+                Artwork
+              </SelectItem>
+              <SelectItem value="frame" className="text-xs">
+                Frame
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </Row>
+        {settings.visualizer.placement === "frame" && (
+          <Row label="Frame band">
+            <Select
+              value={settings.visualizer.frameBand}
+              onValueChange={(v) => patch("visualizer", { frameBand: v as never })}
+            >
+              <SelectTrigger className={sel}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="top" className="text-xs">
+                  Top
+                </SelectItem>
+                <SelectItem value="bottom" className="text-xs">
+                  Bottom
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </Row>
+        )}
         <Row label="Orientation">
           <Select
             value={settings.visualizer.orientation}

@@ -33,6 +33,10 @@ export type TapeStyle = "industrial-black" | "faded-archive" | "bone-label";
 export type VisualizerType = "waveform" | "spectrum" | "bars" | "stereo";
 export type VisualizerPosition = "bottom-center" | "bottom-left" | "bottom-right";
 export type VisualizerOrientation = "horizontal" | "vertical";
+/** Artwork opening vs the printed frame band. */
+export type VisualizerPlacement = "artwork" | "frame";
+/** Which frame band the readout sits on when placement === "frame". */
+export type VisualizerFrameBand = "top" | "bottom";
 export type TextPosition =
   | "top-left"
   | "top-center"
@@ -144,6 +148,10 @@ export interface Settings {
     colorPreset: VisualizerColorPreset;
     /** resolved when colorPreset === "custom" */
     color: string;
+    /** artwork opening or the printed frame band */
+    placement: VisualizerPlacement;
+    /** band used when placement === "frame" */
+    frameBand: VisualizerFrameBand;
   };
   text: {
     enabled: boolean;
@@ -341,6 +349,8 @@ export const defaultSettings = (): Settings => ({
     orientation: "vertical",
     colorPreset: "white",
     color: "#FFFFFF",
+    placement: "artwork",
+    frameBand: "bottom",
   },
   text: {
     enabled: false,

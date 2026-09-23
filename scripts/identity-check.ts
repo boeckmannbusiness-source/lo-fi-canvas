@@ -17,6 +17,7 @@ import {
   ctaState,
   easeInCubic,
   easeOutCubic,
+  frameBands,
   frameThicknessPx,
   hexToRgba,
   nowPlayingLayout,
@@ -201,6 +202,42 @@ check("custom position is expressed as a fraction of the opening", () => {
   strictEqual(layout.align, "center");
   strictEqual(layout.x, rect.x + rect.width / 2);
   strictEqual(layout.y, rect.y + rect.height / 2);
+});
+
+console.log("\nframe bands");
+
+check("frame bands are absent when there is no frame", () => {
+  strictEqual(frameBands(FRAME_OFF, 1920, 1080), null);
+  strictEqual(frameBands({ ...FRAME_ON, thickness: 0 }, 1920, 1080), null);
+});
+
+check("frame bands derive their depth from the frame thickness", () => {
+  const bands = frameBands(FRAME_ON, 1920, 1080)!;
+  const t = frameThicknessPx(FRAME_ON, 1920, 1080);
+  strictEqual(bands.thickness, t);
+  strictEqual(bands.top.height, t);
+  strictEqual(bands.bottom.height, t);
+  strictEqual(bands.left.width, t);
+  strictEqual(bands.right.width, t);
+  strictEqual(bands.bottom.y, 1080 - t);
+  strictEqual(bands.right.x, 1920 - t);
+});
+
+check("frame bands agree with the content opening", () => {
+  const bands = frameBands(FRAME_ON, 1080, 1920)!;
+  const content = contentRect(FRAME_ON, 1080, 1920);
+  strictEqual(bands.content.x, content.x);
+  strictEqual(bands.content.y, content.y);
+  strictEqual(bands.top.height, content.y);
+  strictEqual(bands.bottom.y, content.y + content.height);
+});
+
+check("a thicker frame deepens every band", () => {
+  const thin = frameBands({ ...FRAME_ON, thickness: 0.02 }, 1080, 1920)!;
+  const thick = frameBands({ ...FRAME_ON, thickness: 0.08 }, 1080, 1920)!;
+  ok(thick.thickness > thin.thickness);
+  ok(thick.bottom.height > thin.bottom.height);
+  ok(thick.content.height < thin.content.height);
 });
 
 console.log("\nvisualizer colour");

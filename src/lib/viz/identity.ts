@@ -86,6 +86,40 @@ export function contentRect(frame: FrameLike, width: number, height: number): Re
   };
 }
 
+/**
+ * The four bands that make up the frame ring, derived from the same thickness
+ * as the printed border. They let identity elements (the visualizer today,
+ * metadata tomorrow) live intentionally on the frame instead of only inside
+ * the artwork opening. Returns null when there is no frame to write on.
+ */
+export type FrameBandName = "top" | "bottom" | "left" | "right";
+
+export interface FrameBands {
+  thickness: number;
+  content: Rect;
+  top: Rect;
+  bottom: Rect;
+  left: Rect;
+  right: Rect;
+}
+
+export function frameBands(
+  frame: FrameLike,
+  width: number,
+  height: number,
+): FrameBands | null {
+  const t = frameThicknessPx(frame, width, height);
+  if (t <= 0 || width <= t * 2 || height <= t * 2) return null;
+  return {
+    thickness: t,
+    content: contentRect(frame, width, height),
+    top: { x: 0, y: 0, width, height: t },
+    bottom: { x: 0, y: height - t, width, height: t },
+    left: { x: 0, y: 0, width: t, height },
+    right: { x: width - t, y: 0, width: t, height },
+  };
+}
+
 /* ── Visualizer colour ───────────────────────────────────────────────────── */
 
 export type VisualizerColorPreset =

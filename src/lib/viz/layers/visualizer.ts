@@ -1,26 +1,91 @@
-import { contentRect, hexToRgba, resolveVisualizerColor } from "../identity";
+import {
+  contentRect,
+  frameBands,
+  hexToRgba,
+  resolveVisualizerColor,
+  type Rect,
+} from "../identity";
 import { isPortrait, safeRect, shortEdge } from "../layout";
 import type { RenderContext } from "../types";
+
+/** Resolved placement of the readout, shared by drawing and geometry tests. */
+export interface VisualizerGeometry {
+  cx: number;
+  cy: number;
+  w: number;
+  h: number;
+  /** When set the readout is clipped to this rect (frame placement). */
+  clip: Rect | null;
+}
+
+/**
+ * Pure geometry for the readout. Artwork placement reproduces the historic
+ * landscape/portrait sizing; frame placement fits the readout inside a frame
+ * band, derived from the frame thickness rather than hardcoded coordinates.
+ */
+export function visualizerGeometry(r: RenderContext): VisualizerGeometry {
+  const v = r.settings.visualizer;
+  const { width: W } = r;
+  if (v.placement === "frame") {
+    const framed = frameVisualizerGeometry(r);
+    if (framed) return framed;
+  }
+  // Amplitude is sized off the short edge so the readout stays understated on
+  // a tall canvas; width stays proportional to the frame.
+  const w = W * (isPortrait(r) ? 0.4 + v.size * 0.45 : 0.25 + v.size * 0.45);
+  const h = shortEdge(r) * (0.04 + v.size * 0.08);
+  let cx = W / 2;
+  if (v.position === "bottom-left") cx = W * 0.05 + w / 2;
+  if (v.position === "bottom-right") cx = W * 0.95 - w / 2;
+  return { cx, cy: visualizerBaseline(r), w, h, clip: null };
+}
+
+/** Readout fitted into a frame band, padded off the canvas edge and artwork. */
+function frameVisualizerGeometry(r: RenderContext): VisualizerGeometry | null {
+  const v = r.settings.visualizer;
+  const { width: W, height: H } = r;
+  const bands = frameBands(r.settings.frame, W, H);
+  if (!bands) return null;
+  const band = v.frameBand === "top" ? bands.top : bands.bottom;
+  const pad = bands.thickness * 0.15;
+  const left = band.x + pad;
+  const right = band.x + band.width - pad;
+  const top = band.y + pad;
+  const bottom = band.y + band.height - pad;
+  const span = Math.max(0, right - left);
+  const availH = Math.max(0, bottom - top);
+  const w = span * (v.position === "bottom-center" ? 0.72 : 0.42);
+  const hFactor =
+    v.type === "spectrum"
+      ? 0.44
+      : v.type === "stereo"
+        ? v.orientation === "horizontal"
+          ? 0.42
+          : 0.26
+        : 0.68;
+  const h = availH * hFactor;
+  let cx = (left + right) / 2;
+  if (v.position === "bottom-left") cx = left + w / 2;
+  if (v.position === "bottom-right") cx = right - w / 2;
+  return { cx, cy: (top + bottom) / 2, w, h, clip: band };
+}
 
 /** Understated waveform / spectrum / bars / stereo level meter readout. */
 export function drawVisualizer(r: RenderContext) {
   const v = r.settings.visualizer;
   if (!v.enabled || v.opacity <= 0) return;
-  const { ctx, width: W, height: H } = r;
-  const portrait = isPortrait(r);
-  // Amplitude is sized off the short edge so the readout stays understated on
-  // a tall canvas; width stays proportional to the frame.
-  const w = W * (portrait ? 0.4 + v.size * 0.45 : 0.25 + v.size * 0.45);
-  const h = shortEdge(r) * (0.04 + v.size * 0.08);
-  let cx = W / 2;
-  if (v.position === "bottom-left") cx = W * 0.05 + w / 2;
-  if (v.position === "bottom-right") cx = W * 0.95 - w / 2;
-  const cy = visualizerBaseline(r);
+  const { ctx } = r;
+  const { cx, cy, w, h, clip } = visualizerGeometry(r);
   const gain = v.sensitivity;
   // One resolved colour for every mode — no per-mode hardcoded white.
   const color = resolveVisualizerColor(v);
 
   ctx.save();
+  if (clip) {
+    ctx.beginPath();
+    ctx.rect(clip.x, clip.y, clip.width, clip.height);
+    ctx.clip();
+  }
   ctx.globalAlpha = v.opacity;
   ctx.strokeStyle = hexToRgba(color, 0.85);
   ctx.fillStyle = hexToRgba(color, 0.8);
