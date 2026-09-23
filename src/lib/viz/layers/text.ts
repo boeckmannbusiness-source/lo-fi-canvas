@@ -41,8 +41,9 @@ export function drawText(r: RenderContext) {
   const subtitleFontWeight = resolveWeight(t.fontFamily, t.subtitleWeight);
 
   // ── Resolve legacy fontSize (0–1 range) to percentage ────────────────────
-  const titleSizePx = resolveFontSize(t.fontSize, W);
-  const subtitleSizePx = resolveFontSize(t.subtitleSize, W);
+  const base = typeBase(r);
+  const titleSizePx = resolveFontSize(t.fontSize, base);
+  const subtitleSizePx = resolveFontSize(t.subtitleSize, base);
 
   ctx.save();
 
