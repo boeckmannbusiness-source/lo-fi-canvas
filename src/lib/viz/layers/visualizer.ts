@@ -1,3 +1,4 @@
+import { isPortrait, safeRect, shortEdge } from "../layout";
 import type { RenderContext } from "../types";
 
 /** Understated waveform / spectrum / bars / stereo level meter readout. */
@@ -5,12 +6,16 @@ export function drawVisualizer(r: RenderContext) {
   const v = r.settings.visualizer;
   if (!v.enabled || v.opacity <= 0) return;
   const { ctx, width: W, height: H } = r;
-  const w = W * (0.25 + v.size * 0.45);
-  const h = H * (0.04 + v.size * 0.08);
+  const portrait = isPortrait(r);
+  // Amplitude is sized off the short edge so the readout stays understated on
+  // a tall canvas; width stays proportional to the frame.
+  const w = W * (portrait ? 0.4 + v.size * 0.45 : 0.25 + v.size * 0.45);
+  const h = shortEdge(r) * (0.04 + v.size * 0.08);
   let cx = W / 2;
   if (v.position === "bottom-left") cx = W * 0.05 + w / 2;
   if (v.position === "bottom-right") cx = W * 0.95 - w / 2;
-  const cy = H * 0.88;
+  // Portrait: sit above the caption / action-rail zone instead of at 0.88H.
+  const cy = portrait ? safeRect(r).bottom - h * 1.2 : H * 0.88;
   const gain = v.sensitivity;
 
   ctx.save();
