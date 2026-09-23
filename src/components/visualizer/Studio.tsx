@@ -73,6 +73,11 @@ export function Studio() {
   const [muted, setMuted] = useState(false);
   const [analyzing, setAnalyzing] = useState<number | null>(null);
   const [quality, setQuality] = useState(540);
+  const [formatId, setFormatId] = useState<ExportFormatId>("landscape");
+  const [portraitDuration, setPortraitDuration] = useState(30);
+  const [showSafeAreas, setShowSafeAreas] = useState(false);
+  const format = EXPORT_FORMATS[formatId];
+
 
   const [exporting, setExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
