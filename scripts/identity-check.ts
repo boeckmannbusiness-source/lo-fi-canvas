@@ -14,7 +14,9 @@ import {
   FRAME_PRESETS,
   clamp01,
   contentRect,
+  ctaLayout,
   ctaState,
+  usableRect,
   easeInCubic,
   easeOutCubic,
   frameBands,
@@ -202,6 +204,58 @@ check("custom position is expressed as a fraction of the opening", () => {
   strictEqual(layout.align, "center");
   strictEqual(layout.x, rect.x + rect.width / 2);
   strictEqual(layout.y, rect.y + rect.height / 2);
+});
+
+console.log("\ncta overlay geometry");
+
+const CTA_POSITIONS = [
+  "bottom-center",
+  "bottom-left",
+  "bottom-right",
+  "center",
+  "top-center",
+] as const;
+
+check("cta panel stays inside the usable area at every position", () => {
+  for (const [w, h] of [
+    [1920, 1080],
+    [1080, 1920],
+  ] as const) {
+    const safe = w >= h ? CONTENT_SAFE_AREAS.landscape : CONTENT_SAFE_AREAS.portrait;
+    const area = usableRect(FRAME_ON, w, h, safe);
+    for (const position of CTA_POSITIONS) {
+      const { panel } = ctaLayout({ position, size: 1 }, FRAME_ON, w, h, safe);
+      ok(panel.x >= area.x - 1e-9, `${w}x${h} ${position} left`);
+      ok(panel.y >= area.y - 1e-9, `${w}x${h} ${position} top`);
+      ok(panel.x + panel.width <= area.x + area.width + 1e-9, `${w}x${h} ${position} right`);
+      ok(panel.y + panel.height <= area.y + area.height + 1e-9, `${w}x${h} ${position} bottom`);
+    }
+  }
+});
+
+check("cta is a card, not a full-screen scene", () => {
+  for (const [w, h] of [
+    [1920, 1080],
+    [1080, 1920],
+  ] as const) {
+    const safe = w >= h ? CONTENT_SAFE_AREAS.landscape : CONTENT_SAFE_AREAS.portrait;
+    const { panel } = ctaLayout({ position: "bottom-center", size: 1 }, FRAME_ON, w, h, safe);
+    ok((panel.width * panel.height) / (w * h) < 0.5, `${w}x${h} overlay is a minority of the frame`);
+  }
+});
+
+check("cta bottom-center clears the portrait safe bottom", () => {
+  const safe = CONTENT_SAFE_AREAS.portrait;
+  const { panel } = ctaLayout({ position: "bottom-center", size: 1 }, FRAME_ON, 1080, 1920, safe);
+  ok(panel.y + panel.height <= 1920 * (1 - safe.bottom) + 1e-9, "above the caption band");
+});
+
+check("cta size scales the panel", () => {
+  const safe = CONTENT_SAFE_AREAS.landscape;
+  const small = ctaLayout({ position: "bottom-center", size: 0.75 }, FRAME_ON, 1920, 1080, safe);
+  const large = ctaLayout({ position: "bottom-center", size: 1.5 }, FRAME_ON, 1920, 1080, safe);
+  ok(large.panel.width > small.panel.width);
+  ok(large.panel.height > small.panel.height);
 });
 
 console.log("\nframe bands");

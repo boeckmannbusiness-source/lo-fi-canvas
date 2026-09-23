@@ -23,6 +23,7 @@ import {
   visualizerGeometry,
 } from "../src/lib/viz/layers/visualizer";
 import { contentRect, frameBands } from "../src/lib/viz/identity";
+import { ctaRows } from "../src/lib/viz/layers/cta";
 import { defaultSettings, type RenderContext, type Settings } from "../src/lib/viz/types";
 
 type Call = [string, ...unknown[]];
@@ -275,16 +276,66 @@ check("CTA renders in portrait without throwing", () => {
 });
 
 check("CTA composition does not depend on 16:9 pixel positions", () => {
-  // The headline is centred on both stages, scaled by the shorter edge.
+  // The headline is centred on both stages, scaled by the shorter edge. The
+  // normal scene now always renders underneath the overlay, so locate the
+  // "LIKE" run specifically instead of the first standalone "L".
   const land = render(1920, 1080, 12, baseSettings());
   const port = render(1080, 1920, 12, baseSettings());
-  const centreX = (log: Call[]) => {
-    const hit = log.find((c) => c[0] === "fillText" && c[1] === "L");
-    ok(hit, "headline found");
-    return Number(hit[2]);
+  const headlineX = (log: Call[]) => {
+    for (let i = 0; i < log.length - 3; i++) {
+      if (
+        log[i]![0] === "fillText" &&
+        log[i]![1] === "L" &&
+        log[i + 1]?.[0] === "fillText" &&
+        log[i + 1]![1] === "I" &&
+        log[i + 2]?.[0] === "fillText" &&
+        log[i + 2]![1] === "K" &&
+        log[i + 3]?.[0] === "fillText" &&
+        log[i + 3]![1] === "E"
+      ) {
+        return Number(log[i]![2]);
+      }
+    }
+    ok(false, "LIKE headline found");
+    return Number.NaN;
   };
-  ok(Math.abs(centreX(land) - 960) < 1920 * 0.2, "landscape centred");
-  ok(Math.abs(centreX(port) - 540) < 1080 * 0.2, "portrait centred");
+  ok(Math.abs(headlineX(land) - 960) < 1920 * 0.2, "landscape centred");
+  ok(Math.abs(headlineX(port) - 540) < 1080 * 0.2, "portrait centred");
+});
+
+check("CTA composites over the artwork instead of replacing the scene", () => {
+  const log = render(1920, 1080, 12, baseSettings());
+  ok(
+    log.some((c) => c[0] === "fill" && c[1] === "evenodd"),
+    "frame print band still rendered behind the overlay",
+  );
+  ok(log.some((c) => c[0] === "strokeRect"), "frame hairline still rendered");
+  ok(drawsText(log, "P"), "now playing still rendered behind the overlay");
+  ok(drawsText(log, "L") && drawsText(log, "S"), "CTA overlay drawn on top");
+});
+
+console.log("\ncta overlay rows");
+
+check("LIKE & SUBSCRIBE becomes a thumbs-up row and a bell row", () => {
+  const rows = ctaRows({ text: "LIKE & SUBSCRIBE" });
+  strictEqual(rows.length, 2);
+  strictEqual(rows[0]!.label, "LIKE");
+  strictEqual(rows[0]!.icon, "thumb");
+  strictEqual(rows[1]!.label, "SUBSCRIBE");
+  strictEqual(rows[1]!.icon, "bell");
+});
+
+check("a single-word headline stays one thumbs-up row", () => {
+  const rows = ctaRows({ text: "FOLLOW" });
+  strictEqual(rows.length, 1);
+  strictEqual(rows[0]!.label, "FOLLOW");
+  strictEqual(rows[0]!.icon, "thumb");
+});
+
+check("active CTA draws two icon rows (thumb + bell)", () => {
+  const log = render(1920, 1080, 12, baseSettings());
+  const icons = log.filter((c) => c[0] === "arc" || c[0] === "quadraticCurveTo");
+  ok(icons.length > 0, "icon geometry drawn");
 });
 
 check("frame disabled still renders the scene", () => {

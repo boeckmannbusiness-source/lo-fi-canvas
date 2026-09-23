@@ -44,17 +44,14 @@ export function renderNormalScene(r: RenderContext) {
 /**
  * Scene dispatcher shared by preview and export.
  *
- * Extends the existing layer pipeline rather than adding a second renderer: a
- * deterministic CTA timeline decides whether the normal scene or the CTA card
- * is composited. While the card crossfades in/out — and for the "dim"
- * background style — the normal scene is drawn underneath it.
+ * Extends the existing layer pipeline rather than adding a second renderer: the
+ * normal artwork-led scene always renders, and a deterministic CTA timeline
+ * composites the "LIKE & SUBSCRIBE" overlay on top of it while it is active.
+ * The overlay never replaces the artwork, so a single renderer serves both
+ * preview and export.
  */
 export function renderScene(r: RenderContext) {
   const cta = ctaState(r.settings.cta, r.time);
-  if (!cta.active) {
-    renderNormalScene(r);
-    return;
-  }
-  if (cta.requiresBackdrop || cta.alpha < 1) renderNormalScene(r);
-  drawCtaScene(r, cta);
+  renderNormalScene(r);
+  if (cta.active) drawCtaScene(r, cta);
 }

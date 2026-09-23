@@ -1325,6 +1325,29 @@ export function SettingsPanel({
             </SelectContent>
           </Select>
         </Row>
+        <Row label="Position">
+          <Select
+            value={settings.cta.position}
+            onValueChange={(v) => patch("cta", { position: v as never })}
+          >
+            <SelectTrigger className={sel}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {[
+                ["bottom-center", "Bottom center"],
+                ["bottom-left", "Bottom left"],
+                ["bottom-right", "Bottom right"],
+                ["center", "Center"],
+                ["top-center", "Top center"],
+              ].map(([v, label]) => (
+                <SelectItem key={v} value={v!} className="text-xs">
+                  {label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Row>
         <Toggle
           label="Use frame color"
           checked={settings.cta.useFrameColor}
@@ -1380,6 +1403,16 @@ export function SettingsPanel({
           disabled={!settings.cta.enabled}
           onChange={(v) => patch("cta", { letterSpacing: v })}
           format={(v) => `+${(v * 100).toFixed(1)}%`}
+        />
+        <Knob
+          label="Overlay size"
+          value={settings.cta.size}
+          min={0.5}
+          max={2}
+          step={0.05}
+          disabled={!settings.cta.enabled}
+          onChange={(v) => patch("cta", { size: v })}
+          format={(v) => `${v.toFixed(2)}x`}
         />
         <Knob
           label="Opacity"

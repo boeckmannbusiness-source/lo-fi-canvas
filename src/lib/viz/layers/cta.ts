@@ -2,238 +2,333 @@ import type { RenderContext } from "../types";
 import {
   CTA_PHASES,
   clamp01,
+  clampRange,
+  ctaLayout,
   easeOutCubic,
-  frameThicknessPx,
   hexToRgba,
   resolveFrameColor,
+  type CtaLayout,
   type CtaState,
+  type Rect,
 } from "../identity";
 import { resolveFontFamily, resolveWeight } from "../fonts";
 import { drawTextWithSpacing } from "./text";
 import { GRAIN_VARIANTS, grainTile } from "./grain";
 
-const CARD_BG = "#07070a";
-const CARD_CREAM = "#F2E7CE";
-const DIM_SCRIM = 0.84;
+const PANEL_BG = "#07070a";
+const PANEL_CREAM = "#F2E7CE";
+
+/** Simple canvas-drawn glyphs — no external icon dependency. */
+export type CtaIconKind = "thumb" | "bell";
+
+export interface CtaRow {
+  label: string;
+  icon: CtaIconKind;
+}
 
 /**
- * "LIKE & SUBSCRIBE" interlude — a full BERLIN B TAPES title card.
- *
- * Rendered as a compositional scene rather than a DOM overlay: dark ground,
- * the frame colour taking over the border band, condensed cream typography with
- * a small label underneath, plus texture and a faint analog flicker. Every
- * value derives from `state` (itself a pure function of `time`), so preview and
- * export match exactly.
+ * Rows for the compact overlay. "LIKE & SUBSCRIBE" becomes a thumbs-up row and
+ * a bell row; any other headline stays a single thumbs-up row.
+ */
+export function ctaRows(cta: { text: string }): CtaRow[] {
+  const words = splitCtaText(cta.text).filter((p) => p !== "&");
+  if (words.length >= 2) {
+    return [
+      { label: words[0]!.toUpperCase(), icon: "thumb" },
+      { label: words[1]!.toUpperCase(), icon: "bell" },
+    ];
+  }
+  const single = words[0]?.toUpperCase();
+  return single ? [{ label: single, icon: "thumb" }] : [];
+}
+
+/**
+ * "LIKE & SUBSCRIBE" call to action, recomposited as a compact overlay card on
+ * top of the artwork. It reuses the existing CTA timeline (`state` is a pure
+ * function of `time`) so preview and export stay identical, but never replaces
+ * the scene: the artwork is always rendered underneath by `renderScene`.
  */
 export function drawCtaScene(r: RenderContext, state: CtaState) {
   const c = r.settings.cta;
   if (!state.active || state.alpha <= 0.001) return;
 
-  const { ctx, width: W, height: H, settings } = r;
+  const { width: W, height: H, settings } = r;
   const min = Math.min(W, H);
   const accent = c.useFrameColor ? resolveFrameColor(settings.frame) : c.color;
   const base = state.alpha * clamp01(c.opacity);
-  const band = frameThicknessPx(settings.frame, W, H) || min * 0.04;
+  const layout = ctaLayout(c, settings.frame, W, H, r.safe);
 
-  ctx.save();
-  ctx.globalAlpha = base;
-
-  drawBackdrop(r, accent, base, min);
-  drawBand(r, accent, band, base);
-  drawTypeBlock(r, state, accent, min, base);
-  drawTexture(r, base);
-  drawVignette(r, base, min);
-  drawFlicker(r, state, base);
-
-  ctx.restore();
+  if (c.backgroundStyle === "dim") drawScrim(r, base);
+  drawPanel(r, state, layout, accent, min, base);
 }
 
-/* ── Backdrop ────────────────────────────────────────────────────────────── */
+/* ── Backdrop (dim style only) ───────────────────────────────────────────── */
 
-function drawBackdrop(r: RenderContext, accent: string, base: number, min: number) {
+function drawScrim(r: RenderContext, base: number) {
   const { ctx, width: W, height: H } = r;
-  const dim = r.settings.cta.backgroundStyle === "dim";
-
+  const g = ctx.createRadialGradient(
+    W / 2,
+    H / 2,
+    Math.min(W, H) * 0.1,
+    W / 2,
+    H / 2,
+    Math.max(W, H) * 0.75,
+  );
+  g.addColorStop(0, "rgba(7,7,10,0.16)");
+  g.addColorStop(1, "rgba(7,7,10,0.6)");
   ctx.save();
   ctx.globalAlpha = base;
-  ctx.fillStyle = dim ? `rgba(7,7,10,${DIM_SCRIM})` : CARD_BG;
-  ctx.fillRect(0, 0, W, H);
-
-  // A very soft lift behind the type so the card is not a flat black plate.
-  const glow = ctx.createRadialGradient(W / 2, H * 0.46, min * 0.05, W / 2, H * 0.46, min * 0.85);
-  glow.addColorStop(0, hexToRgba(accent, 0.09));
-  glow.addColorStop(1, "rgba(0,0,0,0)");
-  ctx.fillStyle = glow;
+  ctx.fillStyle = g;
   ctx.fillRect(0, 0, W, H);
   ctx.restore();
 }
 
-/* ── Frame band ──────────────────────────────────────────────────────────── */
+/* ── Overlay card ────────────────────────────────────────────────────────── */
 
-function drawBand(r: RenderContext, accent: string, t: number, base: number) {
-  const { ctx, width: W, height: H } = r;
-  if (t <= 0 || W <= t * 2 || H <= t * 2) return;
-  ctx.save();
-  ctx.globalAlpha = base;
-  ctx.beginPath();
-  ctx.rect(0, 0, W, H);
-  ctx.rect(t, t, W - t * 2, H - t * 2);
-  ctx.fillStyle = accent;
-  ctx.fill("evenodd");
-  ctx.restore();
-}
-
-/* ── Type block ──────────────────────────────────────────────────────────── */
-
-interface CtaLine {
-  text: string;
-  size: number;
-  color: string;
-  opacity: number;
-  spacing: number;
-}
-
-function drawTypeBlock(
+function drawPanel(
   r: RenderContext,
   state: CtaState,
+  layout: CtaLayout,
   accent: string,
   min: number,
   base: number,
 ) {
   const c = r.settings.cta;
-  const { ctx, width: W, height: H } = r;
-  const family = resolveFontFamily(c.fontFamily);
-  const weight = resolveWeight(c.fontFamily, c.weight);
-  const subWeight = resolveWeight(c.fontFamily, 500);
-
-  const parts = splitCtaText(c.text);
-  const mainSize = min * 0.155;
-  const ampSize = mainSize * 0.72;
-  const subSize = min * 0.03;
-
-  const lines: CtaLine[] = [];
-  const [first, second, third] = parts;
-  if (parts.length === 3 && first && second && third) {
-    lines.push({
-      text: first,
-      size: mainSize,
-      color: CARD_CREAM,
-      opacity: 0.96,
-      spacing: c.letterSpacing,
-    });
-    lines.push({ text: second, size: ampSize, color: accent, opacity: 0.92, spacing: 0 });
-    lines.push({
-      text: third,
-      size: mainSize,
-      color: CARD_CREAM,
-      opacity: 0.96,
-      spacing: c.letterSpacing,
-    });
-  } else {
-    lines.push({
-      text: parts.join(" ") || "LIKE & SUBSCRIBE",
-      size: mainSize,
-      color: CARD_CREAM,
-      opacity: 0.96,
-      spacing: c.letterSpacing,
-    });
-  }
-
-  const hasSub = c.showSubText && c.subText.trim().length > 0;
-  const lineHeight = (size: number) => size * 0.98;
-  const typeH = lines.reduce((sum, l) => sum + lineHeight(l.size), 0);
-  const subGap = hasSub ? mainSize * 0.5 : 0;
-  const subH = hasSub ? subSize * 1.1 : 0;
-  const footerGap = min * 0.035;
-  const footerH = min * 0.03;
-  const totalH = typeH + subGap + subH + footerGap + footerH;
+  const { ctx } = r;
+  const panel = layout.panel;
+  const radius = Math.min(panel.width, panel.height) * 0.16;
 
   // Deterministic analog life: a few pixels of drift and a breathing scale.
-  const driftX = state.driftX * min * 0.004;
-  const driftY = state.driftY * min * 0.003;
-  const breathe = 1 + state.jitter * 0.0015;
-  const scale = (c.animationStyle === "scale" ? 0.94 + 0.06 * state.entrance : 1) * breathe;
-  const fade = 1 - state.exit;
+  const driftX = state.driftX * min * 0.003;
+  const driftY = state.driftY * min * 0.0022;
+  const breathe = 1 + state.jitter * 0.0012;
+  const scale = (c.animationStyle === "scale" ? 0.92 + 0.08 * state.entrance : 1) * breathe;
+  const slide = c.animationStyle === "slide-fade" ? (1 - state.entrance) * panel.height * 0.5 : 0;
 
   ctx.save();
-  ctx.translate(W / 2 + driftX, H / 2 + driftY);
+  ctx.translate(panel.x + panel.width / 2 + driftX, panel.y + panel.height / 2 + driftY + slide);
   ctx.scale(scale, scale);
-  ctx.translate(-W / 2, -H / 2);
+  ctx.translate(-(panel.x + panel.width / 2), -(panel.y + panel.height / 2));
 
-  ctx.textAlign = "center";
-  ctx.textBaseline = "alphabetic";
-  ctx.shadowColor = "rgba(0,0,0,0.5)";
-  ctx.shadowBlur = mainSize * 0.22;
-  ctx.shadowOffsetY = mainSize * 0.04;
+  // Plate: translucent dark card so the artwork still reads through it.
+  ctx.globalAlpha = base;
+  ctx.shadowColor = "rgba(0,0,0,0.55)";
+  ctx.shadowBlur = panel.height * 0.4;
+  ctx.shadowOffsetY = panel.height * 0.12;
+  roundRect(ctx, panel.x, panel.y, panel.width, panel.height, radius);
+  ctx.fillStyle = hexToRgba(PANEL_BG, 0.82);
+  ctx.fill();
+  ctx.shadowColor = "transparent";
+  ctx.shadowBlur = 0;
+  ctx.shadowOffsetY = 0;
 
-  let cursor = H / 2 - totalH / 2;
+  // Accent edge and a fine inner keyline — printed social card, not a HUD.
+  ctx.strokeStyle = hexToRgba(accent, 0.8);
+  ctx.lineWidth = Math.max(1, min * 0.0016);
+  roundRect(ctx, panel.x, panel.y, panel.width, panel.height, radius);
+  ctx.stroke();
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i]!;
+  const inset = Math.max(2, min * 0.004);
+  ctx.strokeStyle = hexToRgba(accent, 0.24);
+  ctx.lineWidth = Math.max(1, min * 0.001);
+  roundRect(
+    ctx,
+    panel.x + inset,
+    panel.y + inset,
+    panel.width - inset * 2,
+    panel.height - inset * 2,
+    Math.max(0, radius - inset),
+  );
+  ctx.stroke();
+
+  drawPanelTexture(r, panel, radius, base);
+  drawRows(r, state, panel, accent, base);
+
+  ctx.restore();
+
+  // Small caption below the card, like a printed sub-label.
+  if (c.showSubText && c.subText.trim().length > 0) {
+    const subSize = Math.max(8, min * 0.024);
+    const subY = panel.y + panel.height + min * 0.028;
+    ctx.save();
+    ctx.globalAlpha = base * state.entrance;
+    ctx.fillStyle = hexToRgba(accent, 0.85);
+    ctx.font = `${resolveWeight(c.fontFamily, 500)} ${subSize}px ${resolveFontFamily(c.fontFamily)}`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "alphabetic";
+    drawTextWithSpacing(
+      ctx,
+      c.subText.toUpperCase(),
+      panel.x + panel.width / 2,
+      subY,
+      subSize * 0.28,
+    );
+    ctx.restore();
+  }
+}
+
+function drawRows(
+  r: RenderContext,
+  state: CtaState,
+  panel: Rect,
+  accent: string,
+  base: number,
+) {
+  const c = r.settings.cta;
+  const { ctx } = r;
+  const rows = ctaRows(c);
+  if (rows.length === 0) return;
+
+  const pad = panel.height * 0.16;
+  const rowH = (panel.height - pad * 2) / rows.length;
+  const family = resolveFontFamily(c.fontFamily);
+  const weight = resolveWeight(c.fontFamily, c.weight);
+  const fontSize = rowH * 0.44;
+  const iconSize = Math.min(rowH * 0.6, panel.height * 0.26);
+  const spacing = fontSize * c.letterSpacing;
+
+  // Centre the icon+label block and left-align rows inside it so the icons
+  // line up like a small printed list.
+  let maxGroup = 0;
+  for (const row of rows) {
+    ctx.font = `${weight} ${fontSize}px ${family}`;
+    maxGroup = Math.max(maxGroup, iconSize * 1.5 + measureSpaced(ctx, row.label, spacing));
+  }
+  const innerLeft = panel.x + pad;
+  const innerRight = panel.x + panel.width - pad;
+  const blockX = clampRange(
+    panel.x + (panel.width - maxGroup) / 2,
+    innerLeft,
+    Math.max(innerLeft, innerRight - maxGroup),
+  );
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i]!;
     const p = lineEntrance(state, i);
-    const alpha = (c.animationStyle === "scale" ? state.entrance : p) * fade;
-    if (alpha > 0.001) {
-      const offsetY = c.animationStyle === "slide-fade" ? (1 - p) * mainSize * 0.45 : 0;
-      ctx.globalAlpha = base * alpha * line.opacity;
-      ctx.fillStyle = line.color;
-      ctx.font = `${weight} ${line.size}px ${family}`;
-      ctx.save();
-      ctx.translate(0, offsetY);
-      drawTextWithSpacing(
-        ctx,
-        line.text,
-        W / 2,
-        cursor + line.size * 0.78,
-        line.size * line.spacing,
-      );
-      ctx.restore();
-    }
-    cursor += lineHeight(line.size);
-  }
+    const cyRow = panel.y + pad + rowH * (i + 0.5);
+    const iconX = blockX + iconSize * 0.5;
+    const textX = blockX + iconSize * 1.5;
 
-  if (hasSub) {
-    cursor += subGap;
-    const alpha = state.entrance * fade * 0.6;
-    if (alpha > 0.001) {
-      ctx.globalAlpha = base * alpha;
-      ctx.fillStyle = accent;
-      ctx.shadowColor = "transparent";
-      ctx.font = `${subWeight} ${subSize}px ${family}`;
-      drawTextWithSpacing(
-        ctx,
-        c.subText.toUpperCase(),
-        W / 2,
-        cursor + subSize * 0.85,
-        subSize * 0.28,
-      );
-    }
-    cursor += subH;
-  }
+    ctx.globalAlpha = base * p;
+    drawIcon(ctx, row.icon, iconX, cyRow, iconSize, accent);
 
-  // Minimal tape-path motif: two reels joined by a thread.
-  cursor += footerGap;
-  const reelR = footerH * 0.5;
-  const gapX = mainSize * 0.9;
-  if (reelR > 1) {
-    ctx.globalAlpha = base * state.entrance * fade * 0.45;
-    ctx.strokeStyle = accent;
-    ctx.lineWidth = Math.max(1, min * 0.0022);
-    ctx.beginPath();
-    ctx.arc(W / 2 - gapX, cursor + reelR, reelR, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(W / 2 + gapX, cursor + reelR, reelR, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(W / 2 - gapX + reelR, cursor + reelR);
-    ctx.lineTo(W / 2 + gapX - reelR, cursor + reelR);
-    ctx.stroke();
+    ctx.fillStyle = PANEL_CREAM;
+    ctx.font = `${weight} ${fontSize}px ${family}`;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    ctx.shadowColor = "rgba(0,0,0,0.45)";
+    ctx.shadowBlur = fontSize * 0.3;
+    ctx.shadowOffsetY = fontSize * 0.06;
+    drawTextWithSpacing(ctx, row.label, textX, cyRow, spacing);
+    ctx.shadowColor = "transparent";
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
   }
+}
 
+function drawPanelTexture(r: RenderContext, panel: Rect, radius: number, base: number) {
+  const intensity = Math.max(0.04, r.settings.grain.intensity);
+  const tile = grainTile(Math.floor(r.time * 24) % GRAIN_VARIANTS);
+  if (!tile) return;
+  const { ctx } = r;
+  const pattern = ctx.createPattern(tile, "repeat");
+  if (!pattern) return;
+  ctx.save();
+  roundRect(ctx, panel.x, panel.y, panel.width, panel.height, radius);
+  ctx.clip();
+  ctx.globalCompositeOperation = "overlay";
+  ctx.globalAlpha = base * Math.min(0.22, intensity * 2.0);
+  ctx.fillStyle = pattern;
+  ctx.fillRect(panel.x, panel.y, panel.width, panel.height);
   ctx.restore();
 }
 
-/** Per-line entrance, staggered slightly so lines cascade in. */
+/* ── Icons ───────────────────────────────────────────────────────────────── */
+
+function drawIcon(
+  ctx: RenderContext["ctx"],
+  kind: CtaIconKind,
+  x: number,
+  y: number,
+  size: number,
+  color: string,
+) {
+  const s = size;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.strokeStyle = hexToRgba(color, 0.95);
+  ctx.fillStyle = hexToRgba(color, 0.95);
+  ctx.lineWidth = Math.max(1, s * 0.11);
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
+
+  if (kind === "bell") {
+    ctx.beginPath();
+    ctx.moveTo(-s * 0.36, s * 0.16);
+    ctx.quadraticCurveTo(-s * 0.36, -s * 0.42, 0, -s * 0.42);
+    ctx.quadraticCurveTo(s * 0.36, -s * 0.42, s * 0.36, s * 0.16);
+    ctx.lineTo(s * 0.44, s * 0.26);
+    ctx.lineTo(-s * 0.44, s * 0.26);
+    ctx.closePath();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(0, s * 0.44, s * 0.1, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(0, -s * 0.5, s * 0.07, 0, Math.PI * 2);
+    ctx.fill();
+  } else {
+    // Stylised thumbs-up: a small fist with a raised thumb.
+    ctx.beginPath();
+    ctx.moveTo(-s * 0.42, s * 0.44);
+    ctx.lineTo(-s * 0.42, s * 0.02);
+    ctx.quadraticCurveTo(-s * 0.42, -s * 0.08, -s * 0.3, -s * 0.08);
+    ctx.lineTo(-s * 0.12, -s * 0.08);
+    ctx.lineTo(-s * 0.12, -s * 0.2);
+    ctx.quadraticCurveTo(-s * 0.1, -s * 0.48, s * 0.02, -s * 0.5);
+    ctx.quadraticCurveTo(s * 0.12, -s * 0.5, s * 0.1, -s * 0.3);
+    ctx.lineTo(s * 0.08, -s * 0.08);
+    ctx.lineTo(s * 0.34, -s * 0.08);
+    ctx.quadraticCurveTo(s * 0.48, -s * 0.08, s * 0.44, s * 0.08);
+    ctx.lineTo(s * 0.32, s * 0.4);
+    ctx.quadraticCurveTo(s * 0.29, s * 0.48, s * 0.2, s * 0.48);
+    ctx.lineTo(-s * 0.3, s * 0.48);
+    ctx.quadraticCurveTo(-s * 0.42, s * 0.48, -s * 0.42, s * 0.44);
+    ctx.closePath();
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/* ── Helpers ─────────────────────────────────────────────────────────────── */
+
+function roundRect(
+  ctx: RenderContext["ctx"],
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number,
+) {
+  ctx.beginPath();
+  if (typeof ctx.roundRect === "function") {
+    ctx.roundRect(x, y, width, height, Math.max(0, radius));
+  } else {
+    ctx.rect(x, y, width, height);
+  }
+}
+
+function measureSpaced(
+  ctx: RenderContext["ctx"],
+  text: string,
+  spacing: number,
+): number {
+  const chars = [...text];
+  if (chars.length === 0) return 0;
+  return chars.reduce((sum, ch) => sum + ctx.measureText(ch).width + spacing, -spacing);
+}
+
+/** Per-line entrance, staggered slightly so rows cascade in. */
 function lineEntrance(state: CtaState, index: number): number {
   const span = CTA_PHASES.textIn - CTA_PHASES.cardIn;
   const start = CTA_PHASES.cardIn + index * 0.035;
@@ -253,49 +348,4 @@ export function splitCtaText(text: string): string[] {
   if (parts.length === 2 && a && b) return [a, "&", b];
   const single = text.trim();
   return single ? [single] : [];
-}
-
-/* ── Texture, vignette, flicker ──────────────────────────────────────────── */
-
-function drawTexture(r: RenderContext, base: number) {
-  const { ctx, width: W, height: H } = r;
-  const intensity = Math.max(0.04, r.settings.grain.intensity);
-  const tile = grainTile(Math.floor(r.time * 24) % GRAIN_VARIANTS);
-  const pattern = tile ? ctx.createPattern(tile, "repeat") : null;
-  if (!pattern) return;
-  ctx.save();
-  ctx.globalCompositeOperation = "overlay";
-  ctx.globalAlpha = base * Math.min(0.25, intensity * 2.2);
-  ctx.fillStyle = pattern;
-  ctx.fillRect(0, 0, W, H);
-  ctx.restore();
-}
-
-function drawVignette(r: RenderContext, base: number, min: number) {
-  const { ctx, width: W, height: H } = r;
-  const g = ctx.createRadialGradient(W / 2, H / 2, min * 0.2, W / 2, H / 2, Math.max(W, H) * 0.75);
-  g.addColorStop(0, "rgba(0,0,0,0)");
-  g.addColorStop(1, "rgba(0,0,0,0.5)");
-  ctx.save();
-  ctx.globalAlpha = base;
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, W, H);
-  ctx.restore();
-}
-
-function drawFlicker(r: RenderContext, state: CtaState, base: number) {
-  const delta = state.jitter * 0.035 * state.entrance;
-  if (Math.abs(delta) < 0.0005) return;
-  const { ctx, width: W, height: H } = r;
-  ctx.save();
-  ctx.globalAlpha = base;
-  if (delta > 0) {
-    ctx.globalCompositeOperation = "lighter";
-    ctx.fillStyle = `rgba(255,240,220,${Math.min(0.2, delta).toFixed(4)})`;
-  } else {
-    ctx.globalCompositeOperation = "multiply";
-    ctx.fillStyle = `rgba(230,225,235,${Math.min(0.2, -delta).toFixed(4)})`;
-  }
-  ctx.fillRect(0, 0, W, H);
-  ctx.restore();
 }

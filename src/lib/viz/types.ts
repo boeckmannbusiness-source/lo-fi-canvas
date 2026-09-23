@@ -1,6 +1,7 @@
 import type {
   CtaAnimationStyle,
   CtaBackgroundStyle,
+  CtaPosition,
   FramePreset,
   NowPlayingPosition,
   VisualizerColorPreset,
@@ -10,6 +11,7 @@ export { FRAME_PRESETS, VISUALIZER_COLOR_PRESETS } from "./identity";
 export type {
   CtaAnimationStyle,
   CtaBackgroundStyle,
+  CtaPosition,
   FramePreset,
   NowPlayingPosition,
   VisualizerColorPreset,
@@ -245,6 +247,10 @@ export interface Settings {
     weight: number;
     letterSpacing: number;
     opacity: number;
+    /** where the composited overlay card sits inside the usable area */
+    position: CtaPosition;
+    /** card scale, 1 = default */
+    size: number;
   };
 }
 
@@ -437,6 +443,8 @@ export const defaultSettings = (): Settings => ({
     weight: 600,
     letterSpacing: 0.08,
     opacity: 1,
+    position: "bottom-center",
+    size: 1,
   },
 });
 

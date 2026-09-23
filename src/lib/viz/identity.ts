@@ -235,6 +235,101 @@ export function nowPlayingLayout(
 
 export type CtaAnimationStyle = "slide-fade" | "fade" | "scale";
 export type CtaBackgroundStyle = "title-card" | "dim";
+export type CtaPosition =
+  | "bottom-center"
+  | "bottom-left"
+  | "bottom-right"
+  | "center"
+  | "top-center";
+
+export interface CtaLayout {
+  /** the composited overlay card */
+  panel: Rect;
+  /** usable composition area the card is anchored inside */
+  area: Rect;
+  portrait: boolean;
+}
+
+/** Usable composition area: frame opening clipped by the content-safe band. */
+export function usableRect(
+  frame: FrameLike,
+  width: number,
+  height: number,
+  safe: { top: number; bottom: number; left: number; right: number },
+): Rect {
+  const c = contentRect(frame, width, height);
+  const left = Math.max(c.x, width * safe.left);
+  const top = Math.max(c.y, height * safe.top);
+  const right = Math.min(c.x + c.width, width * (1 - safe.right));
+  const bottom = Math.min(c.y + c.height, height * (1 - safe.bottom));
+  return {
+    x: left,
+    y: top,
+    width: Math.max(0, right - left),
+    height: Math.max(0, bottom - top),
+  };
+}
+
+/**
+ * Compact overlay geometry for the call to action. Derived from the usable
+ * composition rect (not portrait-specific offsets) so the card sits in the
+ * content-safe band at any aspect ratio, and stays a card rather than a
+ * full-screen scene.
+ */
+export function ctaLayout(
+  cta: { position?: string; size?: number },
+  frame: FrameLike,
+  width: number,
+  height: number,
+  safe: { top: number; bottom: number; left: number; right: number },
+): CtaLayout {
+  const portrait = height > width;
+  const area = usableRect(frame, width, height, safe);
+  const min = Math.min(width, height);
+  const size = clampRange(cta.size ?? 1, 0.5, 2);
+  const panelW = Math.min(area.width * 0.9, (portrait ? area.width * 0.82 : min * 0.66)) * size;
+  const panelH = min * 0.16 * size;
+  const margin = min * 0.06;
+
+  let x: number;
+  let y: number;
+  switch (cta.position) {
+    case "bottom-left":
+      x = area.x + margin;
+      y = area.y + area.height - panelH - margin;
+      break;
+    case "bottom-right":
+      x = area.x + area.width - panelW - margin;
+      y = area.y + area.height - panelH - margin;
+      break;
+    case "center":
+      x = area.x + (area.width - panelW) / 2;
+      y = area.y + (area.height - panelH) / 2;
+      break;
+    case "top-center":
+      x = area.x + (area.width - panelW) / 2;
+      y = area.y + margin;
+      break;
+    case "bottom-center":
+    default:
+      x = area.x + (area.width - panelW) / 2;
+      y = area.y + area.height - panelH - margin;
+      break;
+  }
+
+  const maxX = area.x + Math.max(0, area.width - panelW);
+  const maxY = area.y + Math.max(0, area.height - panelH);
+  return {
+    panel: {
+      x: clampRange(x, area.x, maxX),
+      y: clampRange(y, area.y, maxY),
+      width: panelW,
+      height: panelH,
+    },
+    area,
+    portrait,
+  };
+}
 
 export interface CtaLike {
   enabled: boolean;
@@ -335,6 +430,12 @@ export function ctaState(cta: CtaLike, time: number): CtaState {
 
 export function clamp01(value: number): number {
   return value <= 0 ? 0 : value >= 1 ? 1 : value;
+}
+
+/** Clamp a value into a range, collapsing to the midpoint of an empty range. */
+export function clampRange(value: number, min: number, max: number): number {
+  if (max < min) return (min + max) / 2;
+  return value <= min ? min : value >= max ? max : value;
 }
 
 export function easeOutCubic(t: number): number {
