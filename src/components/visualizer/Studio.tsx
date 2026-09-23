@@ -37,8 +37,8 @@ import {
   exportFormatList,
   type ExportFormatId,
 } from "@/lib/viz/format";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 
 const fmt = (s: number) => {
   if (!isFinite(s) || s < 0) s = 0;
@@ -75,19 +75,38 @@ export function Studio() {
   const [quality, setQuality] = useState(540);
   const [formatId, setFormatId] = useState<ExportFormatId>("landscape");
   const [portraitDuration, setPortraitDuration] = useState(30);
+  const [customDuration, setCustomDuration] = useState("30");
+  const [customMode, setCustomMode] = useState(false);
   const [showSafeAreas, setShowSafeAreas] = useState(false);
   const format = EXPORT_FORMATS[formatId];
 
-  // Single source of truth for the export length. Landscape exports the full
-  // track; portrait is capped by the format (and re-clamped inside renderVideo).
-  const exportDuration = useMemo(
-    () =>
-      format.maxDuration === null
-        ? duration || 60
-        : clampDuration(format, portraitDuration),
-    [format, duration, portraitDuration],
+  // Longest duration the portrait format can export for the loaded track:
+  // the format cap (60s) further limited by the actual audio length.
+  const maxPortraitDuration = Math.min(
+    format.maxDuration ?? Number.POSITIVE_INFINITY,
+    duration > 0 ? duration : (format.maxDuration ?? Number.POSITIVE_INFINITY),
   );
 
+  // Single source of truth for the export length. Landscape exports the full
+  // track; portrait is capped by the format (and re-clamped inside renderVideo).
+  const exportDuration = useMemo(() => {
+    if (format.maxDuration === null) return duration || 60;
+    const trackCap = duration > 0 ? duration : format.maxDuration;
+    return clampDuration(format, Math.min(portraitDuration, trackCap));
+  }, [format, duration, portraitDuration]);
+
+  const choosePortraitDuration = (seconds: number) => {
+    setCustomMode(false);
+    setPortraitDuration(seconds);
+  };
+
+  const applyCustomDuration = (raw: string) => {
+    setCustomDuration(raw);
+    const parsed = Number(raw);
+    if (Number.isFinite(parsed) && parsed > 0) {
+      setPortraitDuration(Math.min(parsed, maxPortraitDuration));
+    }
+  };
 
   const [exporting, setExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
@@ -350,7 +369,7 @@ export function Studio() {
         </div>
         <div className="flex items-center gap-2">
           <span className="hidden font-mono text-[10px] text-muted-foreground sm:block">
-            1920×1080 · 30 fps · {estFrames} frames
+            {format.short} · {format.fps} fps · {estFrames} frames
           </span>
           <Button size="sm" className="h-8 gap-1.5 text-xs" onClick={exportVideo} disabled={exporting}>
             <Download className="size-3.5" /> Export video
@@ -427,7 +446,13 @@ export function Studio() {
         {/* CENTER */}
         <main className="flex min-w-0 flex-1 flex-col">
           <div className="flex min-h-0 flex-1 items-center justify-center p-4 md:p-8">
-            <div className="aspect-video w-full max-w-[1100px]">
+            <div
+              className={
+                format.layout === "portrait"
+                  ? "aspect-[9/16] h-full max-h-full max-w-full"
+                  : "aspect-video w-full max-w-[1100px]"
+              }
+            >
               {image ? (
                 <PreviewCanvas
                   settings={settings}
@@ -451,8 +476,90 @@ export function Studio() {
             </div>
           </div>
 
-          {/* BOTTOM transport */}
+          {/* BOTTOM transport + export */}
           <div className="shrink-0 border-t border-border/60 px-4 py-3">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 pb-3">
+              <span className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                Export
+              </span>
+              <div className="flex overflow-hidden rounded-md border border-border/60">
+                {exportFormatList.map((f) => (
+                  <button
+                    key={f.id}
+                    onClick={() => setFormatId(f.id)}
+                    className={`px-2.5 py-1 text-[11px] transition-colors ${
+                      formatId === f.id
+                        ? "bg-primary/15 text-foreground"
+                        : "text-muted-foreground hover:bg-accent/40"
+                    }`}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+              <span className="font-mono text-[10px] text-muted-foreground">
+                {format.short} · {format.fps} fps · {estFrames} frames · {fmt(exportDuration)}
+              </span>
+
+              {format.layout === "portrait" && (
+                <>
+                  <span className="ml-1 text-[10px] text-muted-foreground">Duration</span>
+                  <div className="flex overflow-hidden rounded-md border border-border/60">
+                    {format.durationPresets.map((d) => (
+                      <button
+                        key={d}
+                        onClick={() => choosePortraitDuration(d)}
+                        className={`px-2 py-1 text-[11px] transition-colors ${
+                          !customMode && portraitDuration === d
+                            ? "bg-primary/15 text-foreground"
+                            : "text-muted-foreground hover:bg-accent/40"
+                        }`}
+                      >
+                        {d}s
+                      </button>
+                    ))}
+                    <button
+                      onClick={() => {
+                        setCustomMode(true);
+                        applyCustomDuration(customDuration);
+                      }}
+                      className={`px-2 py-1 text-[11px] transition-colors ${
+                        customMode
+                          ? "bg-primary/15 text-foreground"
+                          : "text-muted-foreground hover:bg-accent/40"
+                      }`}
+                    >
+                      Custom
+                    </button>
+                  </div>
+                  {customMode && (
+                    <div className="flex items-center gap-1">
+                      <Input
+                        type="number"
+                        min={1}
+                        max={Math.floor(maxPortraitDuration)}
+                        value={customDuration}
+                        onChange={(e) => applyCustomDuration(e.target.value)}
+                        className="h-7 w-16 text-[11px]"
+                      />
+                      <span className="font-mono text-[10px] text-muted-foreground">
+                        max {Math.floor(maxPortraitDuration)}s
+                      </span>
+                    </div>
+                  )}
+                </>
+              )}
+
+              <span className="font-mono text-[10px] text-muted-foreground">
+                ≈ {estSize.toFixed(1)} MB
+              </span>
+
+              <label className="ml-auto flex cursor-pointer items-center gap-2 text-[10px] text-muted-foreground">
+                <Switch checked={showSafeAreas} onCheckedChange={setShowSafeAreas} />
+                Safe areas
+              </label>
+            </div>
+
             <div className="flex items-center gap-3">
               <Button
                 size="icon"
@@ -536,7 +643,9 @@ export function Studio() {
       {exporting && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/85 backdrop-blur-sm">
           <div className="w-[360px] rounded-xl border border-border/60 bg-card p-6 shadow-2xl">
-            <h2 className="text-sm font-medium">Rendering 1920×1080 MP4</h2>
+            <h2 className="text-sm font-medium">
+              Rendering {format.width}×{format.height} MP4
+            </h2>
             <p className="mt-1 text-xs text-muted-foreground">{exportStage}</p>
             <Progress value={exportProgress * 100} className="mt-4 h-1.5" />
             <div className="mt-2 flex justify-between font-mono text-[10px] text-muted-foreground">
