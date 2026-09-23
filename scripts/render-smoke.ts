@@ -17,6 +17,8 @@
 import { deepStrictEqual, ok, strictEqual } from "node:assert/strict";
 import { layers, renderNormalScene, renderScene } from "../src/lib/viz/scene";
 import { CONTENT_SAFE_AREAS } from "../src/lib/viz/format";
+import { visualizerBaseline } from "../src/lib/viz/layers/visualizer";
+import { contentRect } from "../src/lib/viz/identity";
 import { defaultSettings, type RenderContext, type Settings } from "../src/lib/viz/types";
 
 type Call = [string, ...unknown[]];
@@ -527,6 +529,61 @@ check("portrait background focus is explicit and user-controlled", () => {
     Math.abs(middle - (top + bottom) / 2) < 1e-9,
     "0.5 is the centred crop",
   );
+});
+
+console.log("\nvisualizer placement");
+
+function visualizerCtx(width: number, height: number, settings: Settings): RenderContext {
+  return {
+    ctx: makeCtx([]),
+    width,
+    height,
+    layout: width >= height ? "landscape" : "portrait",
+    safe: CONTENT_SAFE_AREAS[width >= height ? "landscape" : "portrait"],
+    time: 1,
+    duration: 200,
+    audio: {
+      rms: 0.4,
+      bass: 0.5,
+      mid: 0.3,
+      treble: 0.2,
+      spectrum: new Float32Array(64).fill(0.4),
+      waveform: new Float32Array(256).fill(0.1),
+      levelLeft: 0.5,
+      levelRight: 0.5,
+      peakLeft: 0.6,
+      peakRight: 0.6,
+    },
+    settings,
+    image: null,
+    imageWidth: 0,
+    imageHeight: 0,
+    logo: null,
+    logoWidth: 0,
+    logoHeight: 0,
+    scale: Math.min(width, height) / 1080,
+  };
+}
+
+check("portrait visualizer clears the frame opening and the safe bottom", () => {
+  const s = baseSettings();
+  s.visualizer.enabled = true;
+  s.visualizer.type = "bars";
+  const rc = visualizerCtx(1080, 1920, s);
+  const cy = visualizerBaseline(rc);
+  const h = Math.min(1080, 1920) * (0.04 + s.visualizer.size * 0.08);
+  const safeBottom = 1920 * (1 - CONTENT_SAFE_AREAS.portrait.bottom);
+  const content = contentRect(s.frame, 1080, 1920);
+  ok(cy + h / 2 <= safeBottom + 1e-9, "above the content-safe bottom");
+  ok(cy + h / 2 <= content.y + content.height + 1e-9, "inside the frame opening");
+});
+
+check("landscape visualizer baseline is unchanged at 0.88H", () => {
+  const s = baseSettings();
+  s.visualizer.enabled = true;
+  s.visualizer.type = "bars";
+  const rc = visualizerCtx(1920, 1080, s);
+  strictEqual(visualizerBaseline(rc), 1080 * 0.88);
 });
 
 console.log(`\n${passed} passed, ${failed} failed\n`);

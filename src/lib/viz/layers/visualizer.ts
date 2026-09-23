@@ -1,3 +1,4 @@
+import { contentRect } from "../identity";
 import { isPortrait, safeRect, shortEdge } from "../layout";
 import type { RenderContext } from "../types";
 
@@ -14,8 +15,7 @@ export function drawVisualizer(r: RenderContext) {
   let cx = W / 2;
   if (v.position === "bottom-left") cx = W * 0.05 + w / 2;
   if (v.position === "bottom-right") cx = W * 0.95 - w / 2;
-  // Portrait: sit above the caption / action-rail zone instead of at 0.88H.
-  const cy = portrait ? safeRect(r).bottom - h * 1.2 : H * 0.88;
+  const cy = visualizerBaseline(r);
   const gain = v.sensitivity;
 
   ctx.save();
@@ -76,6 +76,41 @@ export function drawVisualizer(r: RenderContext) {
     }
   }
   ctx.restore();
+}
+
+/**
+ * Vertical centre of the readout, derived from the actual constraints rather
+ * than a magic fraction.
+ *
+ * - Landscape keeps the historic 0.88H baseline, lifted only when the artwork
+ *   frame opening would otherwise clip the readout.
+ * - Portrait must clear *both* the frame opening and the content-safe bottom
+ *   band reserved for platform captions / controls.
+ */
+export function visualizerBaseline(r: RenderContext): number {
+  const v = r.settings.visualizer;
+  const { width: W, height: H } = r;
+  const h = shortEdge(r) * (0.04 + v.size * 0.08);
+  // How far the readout extends either side of its centre.
+  const labelSize = Math.max(8, Math.round(10 * r.scale));
+  const half =
+    v.type === "stereo" && v.orientation !== "horizontal"
+      ? h * 1.75 + labelSize * 1.5
+      : v.type === "stereo"
+        ? Math.max(3, 4 * r.scale) + Math.max(6, 10 * r.scale) / 2
+        : h * 0.5;
+  const pad = Math.min(W, H) * 0.02;
+  if (isPortrait(r)) {
+    const content = contentRect(r.settings.frame, W, H);
+    const limit = Math.min(content.y + content.height, safeRect(r).bottom);
+    return limit - half - pad;
+  }
+  let cy = H * 0.88;
+  if (r.settings.frame.enabled) {
+    const content = contentRect(r.settings.frame, W, H);
+    cy = Math.min(cy, content.y + content.height - half - pad);
+  }
+  return cy;
 }
 
 /**
