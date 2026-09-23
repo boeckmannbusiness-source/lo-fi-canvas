@@ -22,6 +22,24 @@ import {
   nowPlayingLayout,
   resolveFrameColor,
 } from "../src/lib/viz/identity.ts";
+import { alignmentRect, centerAnchor, cornerAnchor } from "../src/lib/viz/layout.ts";
+import { CONTENT_SAFE_AREAS } from "../src/lib/viz/format.ts";
+import type { RenderContext } from "../src/lib/viz/types.ts";
+
+/** Minimal render context for pure layout helpers (no canvas needed). */
+function layoutCtx(
+  width: number,
+  height: number,
+  frame = FRAME_ON,
+): RenderContext {
+  return {
+    width,
+    height,
+    layout: width >= height ? "landscape" : "portrait",
+    safe: width >= height ? CONTENT_SAFE_AREAS.landscape : CONTENT_SAFE_AREAS.portrait,
+    settings: { frame },
+  } as unknown as RenderContext;
+}
 
 const FRAME_ON = { enabled: true, thickness: 0.04, preset: "cream", color: "#EFE4CB" };
 const FRAME_OFF = { enabled: false, thickness: 0.04, preset: "cream", color: "#EFE4CB" };
@@ -181,6 +199,82 @@ check("custom position is expressed as a fraction of the opening", () => {
   strictEqual(layout.align, "center");
   strictEqual(layout.x, rect.x + rect.width / 2);
   strictEqual(layout.y, rect.y + rect.height / 2);
+});
+
+console.log("\nalignment anchors");
+
+check("landscape top-left keeps the historic inset fraction", () => {
+  const p = cornerAnchor(layoutCtx(1920, 1080), "top-left", 0.18, 0.18);
+  strictEqual(p.x, 0.18 * 1920);
+  strictEqual(p.y, 0.18 * 1080);
+});
+
+check("landscape bottom-right keeps the historic inset fraction", () => {
+  const p = cornerAnchor(layoutCtx(1920, 1080), "bottom-right", 0.18, 0.18);
+  strictEqual(p.x, (1 - 0.18) * 1920);
+  strictEqual(p.y, (1 - 0.18) * 1080);
+});
+
+check("portrait top-left anchors the bounding box to the usable top-left", () => {
+  const r = layoutCtx(1080, 1920);
+  const rect = alignmentRect(r);
+  const half = 120;
+  const p = cornerAnchor(r, "top-left", 0.18, 0.18, half, half);
+  ok(p.x - half >= rect.left - 1e-9, "left edge inside the content area");
+  ok(p.y - half >= rect.top - 1e-9, "top edge inside the content area");
+  ok(p.x - half < rect.left + 200, "actually near the left edge");
+  ok(p.y - half < rect.top + 200, "actually near the top edge");
+});
+
+check("portrait bottom-right anchors the bounding box to the usable bottom-right", () => {
+  const r = layoutCtx(1080, 1920);
+  const rect = alignmentRect(r);
+  const half = 120;
+  const p = cornerAnchor(r, "bottom-right", 0.18, 0.18, half, half);
+  ok(p.x + half <= rect.right + 1e-9, "right edge inside the content area");
+  ok(p.y + half <= rect.bottom + 1e-9, "bottom edge inside the content area");
+  ok(p.x + half > rect.right - 200, "actually near the right edge");
+  ok(p.y + half > rect.bottom - 200, "actually near the bottom edge");
+});
+
+check("portrait anchors never leave the usable area for oversized elements", () => {
+  const r = layoutCtx(1080, 1920);
+  const rect = alignmentRect(r);
+  const half = 900; // far larger than the content area
+  for (const corner of ["top-left", "top-right", "bottom-left", "bottom-right"] as const) {
+    const p = cornerAnchor(r, corner, 0.18, 0.18, half, half);
+    ok(p.x - half <= rect.left + 1e-9 || p.x === (rect.left + rect.right) / 2);
+    ok(Number.isFinite(p.x) && Number.isFinite(p.y));
+  }
+});
+
+check("portrait top-right is not pushed down by a portrait-only offset", () => {
+  const r = layoutCtx(1080, 1920);
+  const rect = alignmentRect(r);
+  const p = cornerAnchor(r, "top-right", 0.18, 0.18, 100, 100);
+  ok(p.y - 100 < rect.top + 200, "top anchor sits at the top of the content area");
+  ok(p.x + 100 <= rect.right + 1e-9);
+});
+
+check("center alignment is the centre of the usable composition area", () => {
+  const r = layoutCtx(1080, 1920);
+  const rect = alignmentRect(r);
+  const c = centerAnchor(r);
+  strictEqual(c.x, (rect.left + rect.right) / 2);
+  strictEqual(c.y, (rect.top + rect.bottom) / 2);
+});
+
+check("landscape center stays the canvas centre", () => {
+  const c = centerAnchor(layoutCtx(1920, 1080));
+  strictEqual(c.x, 960);
+  strictEqual(c.y, 540);
+});
+
+check("alignment rect tracks frame thickness", () => {
+  const thin = alignmentRect(layoutCtx(1080, 1920, { ...FRAME_ON, thickness: 0.02 }));
+  const thick = alignmentRect(layoutCtx(1080, 1920, { ...FRAME_ON, thickness: 0.08 }));
+  ok(thick.left >= thin.left, "thicker frame pushes the usable area inward");
+  ok(thick.width <= thin.width);
 });
 
 console.log(`\n${passed} passed, ${failed} failed\n`);

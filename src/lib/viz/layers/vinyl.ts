@@ -8,8 +8,12 @@ function vinylCenter(r: RenderContext): { x: number; y: number } {
     case "top-left":
     case "top-right":
     case "bottom-left":
-    case "bottom-right":
-      return cornerAnchor(r, v.position, m, m);
+    case "bottom-right": {
+      // Pass the disc's own radius so portrait anchoring fits its bounding box
+      // inside the usable composition area instead of guessing an inset.
+      const radius = v.size * shortEdge(r) * 0.5;
+      return cornerAnchor(r, v.position, m, m, radius, radius);
+    }
     default:
       // Explicit custom coordinates are authoritative in every format.
       return { x: v.x * r.width, y: v.y * r.height };

@@ -1,4 +1,4 @@
-import { cornerAnchor, isPortrait, safeRect } from "../layout";
+import { centerAnchor, cornerAnchor } from "../layout";
 import type { RenderContext } from "../types";
 
 const TAPE_STYLES = {
@@ -60,13 +60,13 @@ function tapeCenter(r: RenderContext): { x: number; y: number } {
     case "top-left":
     case "top-right":
     case "bottom-left":
-    case "bottom-right":
-      return cornerAnchor(r, tape.position, 0.18, 0.22);
+    case "bottom-right": {
+      const width = tape.size * r.width;
+      const height = width * 0.62;
+      return cornerAnchor(r, tape.position, 0.18, 0.22, width / 2, height / 2);
+    }
     case "center":
-      return {
-        x: r.width * 0.5,
-        y: isPortrait(r) ? safeRect(r).top + safeRect(r).height * 0.5 : r.height * 0.5,
-      };
+      return centerAnchor(r);
     case "custom":
       // Explicit custom coordinates are authoritative in every format.
       return { x: tape.x * r.width, y: tape.y * r.height };
