@@ -1,7 +1,7 @@
 import { ArrayBufferTarget, Muxer } from "mp4-muxer";
 import { frameAt, type AudioAnalysis } from "./analysis";
 import { renderScene } from "./scene";
-import { safeAreaFor } from "./format";
+import { clampSeconds, safeAreaFor } from "./format";
 import type { LayoutMode, SafeArea, Settings } from "./types";
 
 export interface ExportOptions {
@@ -143,8 +143,7 @@ export async function renderVideo(opts: ExportOptions): Promise<Blob> {
   const layout: LayoutMode = opts.layout ?? (height > width ? "portrait" : "landscape");
   const safe = opts.safe ?? safeAreaFor(layout);
   const cap = opts.maxDuration ?? null;
-  const requested = Number.isFinite(opts.duration) && opts.duration > 0 ? opts.duration : 1;
-  const duration = cap === null ? requested : Math.min(requested, cap);
+  const duration = clampSeconds(opts.duration, cap);
   const bitrate = opts.bitrate ?? 8_000_000;
   const totalFrames = Math.max(1, Math.round(duration * fps));
 

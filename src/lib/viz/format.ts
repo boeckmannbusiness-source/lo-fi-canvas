@@ -74,10 +74,18 @@ export function safeAreaFor(layout: LayoutMode): SafeArea {
   return CONTENT_SAFE_AREAS[layout];
 }
 
+/**
+ * Clamp a requested duration to an optional hard cap. Shared by the UI and by
+ * `renderVideo` so the two can never disagree; invalid input falls back to 1s.
+ */
+export function clampSeconds(seconds: number, max: number | null): number {
+  const s = Number.isFinite(seconds) && seconds > 0 ? seconds : 1;
+  return max === null ? s : Math.min(s, max);
+}
+
 /** Hard duration clamp — applied in the UI and again inside renderVideo. */
 export function clampDuration(format: ExportFormat, seconds: number): number {
-  const s = Number.isFinite(seconds) && seconds > 0 ? seconds : 1;
-  return format.maxDuration === null ? s : Math.min(s, format.maxDuration);
+  return clampSeconds(seconds, format.maxDuration);
 }
 
 /** Rough encoded size in MB for the export estimate. */
