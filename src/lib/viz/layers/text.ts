@@ -1,8 +1,15 @@
 import type { RenderContext, Settings } from "../types";
 import { resolveFontFamily, resolveWeight } from "../fonts";
+import { isPortrait } from "../layout";
 
-/** Safe-area margin as fraction of canvas width. */
-const SAFE_MARGIN = 0.04;
+/**
+ * Type sizing basis. Landscape keeps "% of canvas width" exactly as before.
+ * Portrait uses a widened basis so a 7% title stays physically large on a
+ * 1080-wide frame instead of shrinking with the narrower canvas.
+ */
+function typeBase(r: RenderContext): number {
+  return isPortrait(r) ? r.width * 1.45 : r.width;
+}
 
 /**
  * Premium typography layer for BERLIN B TAPES.
