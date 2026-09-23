@@ -1,3 +1,18 @@
+import type {
+  CtaAnimationStyle,
+  CtaBackgroundStyle,
+  FramePreset,
+  NowPlayingPosition,
+} from "./identity";
+
+export { FRAME_PRESETS } from "./identity";
+export type {
+  CtaAnimationStyle,
+  CtaBackgroundStyle,
+  FramePreset,
+  NowPlayingPosition,
+} from "./identity";
+
 export type BackgroundFit = "cover" | "contain" | "fill";
 export type VinylPosition =
   | "top-left"
@@ -163,6 +178,58 @@ export interface Settings {
     opacity: number;
     margin: number;
   };
+  /** BERLIN B TAPES colored print border around the composition. */
+  frame: {
+    enabled: boolean;
+    preset: FramePreset;
+    color: string;
+    /** border thickness as a fraction of the shorter canvas edge */
+    thickness: number;
+    opacity: number;
+    /** subtle inner shadow cast onto the artwork */
+    shadow: number;
+    /** analog texture on the border band */
+    texture: number;
+  };
+  /** Small editorial "NOW PLAYING" information element. */
+  nowPlaying: {
+    enabled: boolean;
+    label: string;
+    title: string;
+    artist: string;
+    showLabel: boolean;
+    showTitle: boolean;
+    showArtist: boolean;
+    showRule: boolean;
+    position: NowPlayingPosition;
+    customX: number;
+    customY: number;
+    align: TextHAlign;
+    fontFamily: FontFamily;
+    weight: number;
+    /** title size as a percentage of canvas width */
+    size: number;
+    letterSpacing: number;
+    color: string;
+    opacity: number;
+  };
+  /** Reusable "LIKE & SUBSCRIBE" interlude scene. */
+  cta: {
+    enabled: boolean;
+    startTime: number;
+    duration: number;
+    animationStyle: CtaAnimationStyle;
+    backgroundStyle: CtaBackgroundStyle;
+    text: string;
+    subText: string;
+    showSubText: boolean;
+    useFrameColor: boolean;
+    color: string;
+    fontFamily: FontFamily;
+    weight: number;
+    letterSpacing: number;
+    opacity: number;
+  };
 }
 
 /** Smoothed per-frame audio features. */
@@ -192,10 +259,23 @@ export const SILENT_FRAME: AudioFrame = {
   peakRight: 0,
 };
 
+/** Composition mode of the target canvas. */
+export type LayoutMode = "landscape" | "portrait";
+
+/** Safe-area insets as fractions of the canvas. Composition only — never drawn. */
+export interface SafeArea {
+  top: number;
+  bottom: number;
+  left: number;
+  right: number;
+}
+
 export interface RenderContext {
   ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
   width: number;
   height: number;
+  layout: LayoutMode;
+  safe: SafeArea;
   /** playback time in seconds */
   time: number;
   /** total duration in seconds (fallback 300) */
@@ -208,7 +288,7 @@ export interface RenderContext {
   logo: CanvasImageSource | null;
   logoWidth: number;
   logoHeight: number;
-  /** scale factor relative to 1920x1080 reference */
+  /** hairline scale factor: short canvas edge / 1080 (1.0 at 1920×1080) */
   scale: number;
 }
 
@@ -292,6 +372,51 @@ export const defaultSettings = (): Settings => ({
     size: 0.14,
     opacity: 0.8,
     margin: 0.04,
+  },
+  frame: {
+    enabled: true,
+    preset: "cream",
+    color: "#EFE4CB",
+    thickness: 0.038,
+    opacity: 0.95,
+    shadow: 0.4,
+    texture: 0.45,
+  },
+  nowPlaying: {
+    enabled: true,
+    label: "NOW PLAYING",
+    title: "",
+    artist: "",
+    showLabel: true,
+    showTitle: true,
+    showArtist: true,
+    showRule: true,
+    position: "top-right",
+    customX: 0.82,
+    customY: 0.12,
+    align: "right",
+    fontFamily: "IBM Plex Mono",
+    weight: 500,
+    size: 2.4,
+    letterSpacing: 0.06,
+    color: "#F2E7CE",
+    opacity: 0.85,
+  },
+  cta: {
+    enabled: true,
+    startTime: 10,
+    duration: 4,
+    animationStyle: "slide-fade",
+    backgroundStyle: "title-card",
+    text: "LIKE & SUBSCRIBE",
+    subText: "BERLIN B TAPES",
+    showSubText: true,
+    useFrameColor: true,
+    color: "#EFE4CB",
+    fontFamily: "Oswald",
+    weight: 600,
+    letterSpacing: 0.08,
+    opacity: 1,
   },
 });
 
