@@ -16,6 +16,11 @@ dist-ssr
 .nitro
 *.local
 
+# Env (public VITE_* values only — never commit real .env files)
+.env
+.env.*
+!.env.example
+
 # Wrangler / Cloudflare
 .wrangler/
 .dev.vars

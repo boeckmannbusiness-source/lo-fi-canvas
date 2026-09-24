@@ -13,6 +13,7 @@
     "test:render": "bun scripts/render-smoke.ts",
     "test:export": "bun scripts/export-check.ts",
     "test:presets": "bun scripts/presets-check.ts",
+    "test:cloudinary": "bun scripts/cloudinary-check.ts",
     "format": "prettier --write ."
   },
   "overrides": {

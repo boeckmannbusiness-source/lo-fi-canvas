@@ -11,6 +11,8 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import {
+  Check,
+  Copy,
   Disc3,
   Download,
   Film,
@@ -20,10 +22,16 @@ import {
   Pause,
   Play,
   RotateCcw,
+  Smartphone,
   Volume2,
   VolumeX,
   X,
 } from "lucide-react";
+import {
+  isMobileDownloadSupported,
+  readCloudinaryConfig,
+  uploadVideoToCloudinary,
+} from "@/lib/cloudinary";
 import { PreviewCanvas } from "./PreviewCanvas";
 import { SettingsPanel } from "./SettingsPanel";
 import { UserPresets } from "./UserPresets";
@@ -117,6 +125,17 @@ export function Studio() {
   const [exportElapsed, setExportElapsed] = useState(0);
   const abortRef = useRef<AbortController | null>(null);
   const freeClockRef = useRef(0);
+
+  // The already-generated portrait MP4, kept so "Send to phone" can upload it
+  // without re-rendering or re-encoding. Only set for portrait exports.
+  const [portraitExport, setPortraitExport] = useState<{
+    blob: Blob;
+    filename: string;
+  } | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [mobileLink, setMobileLink] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   // drive the preview clock
   useEffect(() => {
@@ -345,15 +364,27 @@ export function Studio() {
           setExportStage(stage);
         },
       });
+      const filename = `${(audioName || "visualizer").replace(/\.[^.]+$/, "")}-${format.width}x${format.height}.mp4`;
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${(audioName || "visualizer").replace(/\.[^.]+$/, "")}-${format.width}x${format.height}.mp4`;
+      a.download = filename;
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 30000);
       setExportProgress(1);
       setExportStage("Done");
       toast.success("Your MP4 is ready and downloading.");
+
+      // Portrait exports additionally offer a mobile download link. The Blob is
+      // reused exactly as generated: no re-render, no re-encode.
+      if (isMobileDownloadSupported(format.id)) {
+        setPortraitExport({ blob, filename });
+        setMobileLink(null);
+        setUploadError(null);
+        setCopied(false);
+      } else {
+        setPortraitExport(null);
+      }
     } catch (e) {
       if ((e as Error)?.name === "AbortError") toast("Export cancelled.");
       else {
@@ -363,6 +394,58 @@ export function Studio() {
     } finally {
       setExporting(false);
       abortRef.current = null;
+    }
+  };
+
+  // Re-download the retained portrait export (the automatic download on export
+  // is unchanged; this is an explicit repeat action next to "Send to phone").
+  const downloadPortraitExport = () => {
+    if (!portraitExport) return;
+    const url = URL.createObjectURL(portraitExport.blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = portraitExport.filename;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 30000);
+  };
+
+  const sendToPhone = async () => {
+    if (!portraitExport || uploading) return;
+    const config = readCloudinaryConfig();
+    if (!config) {
+      setUploadError(
+        "Cloudinary isn't configured. Set VITE_CLOUDINARY_CLOUD_NAME and VITE_CLOUDINARY_UPLOAD_PRESET.",
+      );
+      return;
+    }
+    setUploading(true);
+    setUploadError(null);
+    setMobileLink(null);
+    setCopied(false);
+    try {
+      const result = await uploadVideoToCloudinary(portraitExport.blob, {
+        config,
+        filename: portraitExport.filename,
+      });
+      setMobileLink(result.secureUrl);
+      toast.success("Mobile link ready.");
+    } catch (error) {
+      console.error(error);
+      setUploadError((error as Error)?.message || "Cloudinary upload failed.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const copyMobileLink = async () => {
+    if (!mobileLink) return;
+    try {
+      await navigator.clipboard.writeText(mobileLink);
+      setCopied(true);
+      toast.success("Link copied.");
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error("Couldn't copy automatically — select the link to copy it.");
     }
   };
 
@@ -587,6 +670,53 @@ export function Studio() {
                 Safe areas
               </label>
             </div>
+
+            {portraitExport && isMobileDownloadSupported(format.id) && (
+              <div className="mb-3 flex flex-wrap items-center gap-3 rounded-md border border-primary/40 bg-primary/5 px-3 py-2">
+                <span className="text-[11px] font-medium">Export complete</span>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="h-7 gap-1.5 text-xs"
+                  onClick={downloadPortraitExport}
+                >
+                  <Download className="size-3.5" /> Download
+                </Button>
+                {!mobileLink && (
+                  <Button
+                    size="sm"
+                    className="h-7 gap-1.5 text-xs"
+                    onClick={() => void sendToPhone()}
+                    disabled={uploading}
+                  >
+                    <Smartphone className="size-3.5" />
+                    {uploading ? "Uploading…" : "Send to phone"}
+                  </Button>
+                )}
+                {mobileLink && (
+                  <>
+                    <span className="text-[11px] text-muted-foreground">Mobile link ready</span>
+                    <Button
+                      size="sm"
+                      className="h-7 gap-1.5 text-xs"
+                      onClick={() => void copyMobileLink()}
+                    >
+                      {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+                      {copied ? "Copied" : "Copy download link"}
+                    </Button>
+                    <a
+                      href={mobileLink}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="max-w-[240px] truncate font-mono text-[10px] text-primary underline"
+                    >
+                      {mobileLink}
+                    </a>
+                  </>
+                )}
+                {uploadError && <span className="text-[10px] text-destructive">{uploadError}</span>}
+              </div>
+            )}
 
             <div className="flex items-center gap-3">
               <Button

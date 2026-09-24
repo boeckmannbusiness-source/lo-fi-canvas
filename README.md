@@ -714,3 +714,23 @@ cd <repository-name>
 npm i
 npm run dev
 ```
+
+## Cloudinary mobile download (optional)
+
+Portrait (1080×1920) exports offer a **Send to phone** action that uploads the
+already-generated MP4 to Cloudinary and returns a shareable link. This is the
+only path that leaves the device, it is opt-in, and it only ever uploads the
+exported MP4 — never the source artwork or audio.
+
+Configure it with two public Vite env vars (see `.env.example`). The upload uses
+an **unsigned upload preset**, so no API secret is ever shipped to the browser:
+
+```sh
+VITE_CLOUDINARY_CLOUD_NAME=your-cloud-name
+VITE_CLOUDINARY_UPLOAD_PRESET=your-unsigned-video-preset
+```
+
+In the Cloudinary console create an upload preset with **Signing mode:
+Unsigned**, scoped to video uploads. When the vars are absent the action shows a
+clear configuration error and local download keeps working unchanged.
+
