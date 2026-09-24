@@ -12,6 +12,9 @@ import { ok, strictEqual } from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
+  CLOUDINARY_SYNC_PROCESSING_LIMIT_MB,
+  CLOUDINARY_VIDEO_RESOURCE_TYPE,
+  cloudinaryErrorMessage,
   cloudinaryUploadUrl,
   isMobileDownloadSupported,
   parseCloudinaryConfig,
@@ -80,6 +83,7 @@ await check("valid env values are trimmed into a config", () => {
 console.log("\nendpoint");
 
 await check("video upload endpoint is https and cloud-encoded", () => {
+  strictEqual(CLOUDINARY_VIDEO_RESOURCE_TYPE, "video");
   strictEqual(
     cloudinaryUploadUrl("demo-cloud"),
     "https://api.cloudinary.com/v1_1/demo-cloud/video/upload",
@@ -156,6 +160,102 @@ await check("a response without secure_url throws", async () => {
   ok(message.includes("secure_url"), `got: ${message}`);
 });
 
+console.log("\ntransform-free contract");
+
+await check("the only multipart fields are file and upload_preset", async () => {
+  const { fn, calls } = stubFetch(
+    () =>
+      new Response(JSON.stringify({ secure_url: "https://res.example/clip.mp4" }), { status: 200 }),
+  );
+  await uploadVideoToCloudinary(new Blob(["x"], { type: "video/mp4" }), {
+    config: CONFIG,
+    filename: "clip.mp4",
+    fetchImpl: fn,
+  });
+
+  const body = calls[0]!.init.body as FormData;
+  strictEqual(JSON.stringify([...body.keys()].sort()), JSON.stringify(["file", "upload_preset"]));
+  for (const forbidden of [
+    "format",
+    "transformation",
+    "eager",
+    "eager_async",
+    "resource_type",
+    "type",
+    "context",
+    "tags",
+    "public_id",
+    "async",
+    "notification_url",
+    "eager_notification_url",
+  ]) {
+    strictEqual(body.get(forbidden), null, `unexpected "${forbidden}" field`);
+  }
+  strictEqual(calls[0]!.url, "https://api.cloudinary.com/v1_1/demo-cloud/video/upload");
+});
+
+console.log("\nlarge uploads");
+
+await check("a video larger than 40 MB is sent unchanged (no client-side cap)", async () => {
+  const { fn, calls } = stubFetch(
+    () =>
+      new Response(
+        JSON.stringify({
+          secure_url: "https://res.cloudinary.com/demo-cloud/video/upload/v1/big.mp4",
+          public_id: "big",
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
+  );
+  const big = new Blob([new Uint8Array(CLOUDINARY_SYNC_PROCESSING_LIMIT_MB * 1024 * 1024 + 1)], {
+    type: "video/mp4",
+  });
+  ok(big.size > CLOUDINARY_SYNC_PROCESSING_LIMIT_MB * 1024 * 1024, "fixture exceeds the limit");
+
+  const result = await uploadVideoToCloudinary(big, {
+    config: CONFIG,
+    filename: "big.mp4",
+    fetchImpl: fn,
+  });
+
+  strictEqual(result.secureUrl, "https://res.cloudinary.com/demo-cloud/video/upload/v1/big.mp4");
+  const body = calls[0]!.init.body as FormData;
+  const sent = body.get("file");
+  ok(sent instanceof Blob, "file part is a Blob");
+  strictEqual((sent as Blob).size, big.size, "bytes are forwarded unchanged");
+});
+
+console.log("\nerror messages");
+
+await check("the synchronous-processing error is explained, not dumped as JSON", () => {
+  const raw =
+    '{"error":{"message":"Video is too large to process synchronously, please use an eager transformation with eager_async=true to resolve"}}';
+  const message = cloudinaryErrorMessage(400, raw);
+  ok(message.includes("400"), message);
+  ok(new RegExp(`${CLOUDINARY_SYNC_PROCESSING_LIMIT_MB} MB`, "i").test(message), message);
+  ok(/preset/i.test(message), message);
+  ok(!message.includes("{"), `raw JSON leaked: ${message}`);
+});
+
+await check("the sync-processing message never suggests eager_async", () => {
+  const raw =
+    '{"error":{"message":"Video is too large to process synchronously, please use an eager transformation with eager_async=true to resolve"}}';
+  const message = cloudinaryErrorMessage(400, raw);
+  ok(!/eager_async=true/.test(message), message);
+});
+
+await check("unknown errors keep the status and the server detail", () => {
+  const message = cloudinaryErrorMessage(400, "Invalid upload preset");
+  ok(message.includes("400"), message);
+  ok(message.includes("Invalid upload preset"), message);
+});
+
+await check("JSON error envelopes are unwrapped", () => {
+  const message = cloudinaryErrorMessage(400, '{"error":{"message":"Bad request"}}');
+  ok(message.includes("Bad request"), message);
+  ok(!message.includes("{"), `raw JSON leaked: ${message}`);
+});
+
 console.log("\nscope / safety");
 
 await check("the mobile action is only supported for portrait", () => {
@@ -173,6 +273,24 @@ await check("client upload code contains no API secret", () => {
   ok(!/signature|timestamp/i.test(source), "no signed-upload params");
   ok(source.includes("VITE_CLOUDINARY_CLOUD_NAME"), "reads cloud name from env");
   ok(source.includes("VITE_CLOUDINARY_UPLOAD_PRESET"), "reads preset from env");
+});
+
+await check("client never appends a transformation parameter", () => {
+  const path = fileURLToPath(new URL("../src/lib/cloudinary.ts", import.meta.url));
+  const source = readFileSync(path, "utf8");
+  for (const param of [
+    "format",
+    "transformation",
+    "eager",
+    "eager_async",
+    "resource_type",
+    "async",
+  ]) {
+    ok(
+      !new RegExp(`append\\(\\s*["'\`]${param}["'\`]`).test(source),
+      `no "${param}" field is appended`,
+    );
+  }
 });
 
 console.log(`\n${passed} passed, ${failed} failed\n`);

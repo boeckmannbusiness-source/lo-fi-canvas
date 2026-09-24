@@ -731,6 +731,12 @@ VITE_CLOUDINARY_UPLOAD_PRESET=your-unsigned-video-preset
 ```
 
 In the Cloudinary console create an upload preset with **Signing mode:
-Unsigned**, scoped to video uploads. When the vars are absent the action shows a
-clear configuration error and local download keeps working unchanged.
+Unsigned**, scoped to video uploads. **Leave both the incoming and eager
+transformations empty**: the upload only ever stores the exported MP4 as-is. A
+transformation (including a `format` conversion) makes Cloudinary process the
+video synchronously and reject files above the plan's on-the-fly limit (40 MB on
+the Free plan) with `Video is too large to process synchronously`.
+
+When the vars are absent the action shows a clear configuration error and local
+download keeps working unchanged.
 
