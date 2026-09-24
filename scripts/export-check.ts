@@ -23,6 +23,7 @@ import { defaultSettings, type RenderContext } from "../src/lib/viz/types";
 let muxerVideoChunks = 0;
 let muxerAudioChunks = 0;
 let lastTarget: { buffer: ArrayBuffer | null } | null = null;
+let lastMuxerOptions: Record<string, unknown> | null = null;
 
 class ArrayBufferTarget {
   buffer: ArrayBuffer | null = new ArrayBuffer(16);
@@ -30,6 +31,7 @@ class ArrayBufferTarget {
 class Muxer {
   constructor(opts: { target: { buffer: ArrayBuffer | null } }) {
     lastTarget = opts.target;
+    lastMuxerOptions = opts as unknown as Record<string, unknown>;
   }
   addVideoChunk() {
     muxerVideoChunks++;
@@ -160,6 +162,7 @@ class StubAudioData {
 let videoEncoded = 0;
 let lastVideoConfig: Record<string, unknown> | null = null;
 let audioEncoded = 0;
+let lastAudioConfig: Record<string, unknown> | null = null;
 let audioTimestamps: number[] = [];
 let firstAudioSamples: number[] = [];
 let onVideoEncode: ((index: number) => void) | null = null;
@@ -196,8 +199,9 @@ class StubAudioEncoder {
   state = "unconfigured";
   encodeQueueSize = 0;
   constructor(public handlers: { output: (c: unknown, m: unknown) => void; error: (e: unknown) => void }) {}
-  configure() {
+  configure(config: Record<string, unknown>) {
     this.state = "configured";
+    lastAudioConfig = config;
   }
   encode(data: StubAudioData) {
     if (audioPhase === "real") {
@@ -218,6 +222,38 @@ class StubAudioEncoder {
   }
   addEventListener() {}
   removeEventListener() {}
+}
+
+/**
+ * Minimal OfflineAudioContext stand-in used by the resampling test. It reports
+ * a buffer at the context's rate, mimicking the browser's resampler.
+ */
+class StubOfflineAudioContext {
+  destination = {};
+  constructor(
+    public numberOfChannels: number,
+    public length: number,
+    public sampleRate: number,
+  ) {}
+  createBufferSource() {
+    return {
+      buffer: null as unknown,
+      connect() {},
+      start() {},
+    };
+  }
+  async startRendering() {
+    const data = Array.from({ length: this.numberOfChannels }, () =>
+      new Float32Array(this.length).fill(0.1),
+    );
+    return {
+      numberOfChannels: this.numberOfChannels,
+      sampleRate: this.sampleRate,
+      length: this.length,
+      duration: this.length / this.sampleRate,
+      getChannelData: (c: number) => data[c],
+    };
+  }
 }
 
 (globalThis as unknown as Record<string, unknown>).OffscreenCanvas = StubOffscreenCanvas;
@@ -269,6 +305,8 @@ interface RunResult {
   bufferReleased: boolean;
   blobSize: number;
   videoConfig: Record<string, unknown> | null;
+  audioConfig: Record<string, unknown> | null;
+  muxerOptions: Record<string, unknown> | null;
 }
 
 async function run(opts: {
@@ -281,6 +319,7 @@ async function run(opts: {
   muxerVideoChunks = 0;
   muxerAudioChunks = 0;
   lastTarget = null;
+  lastMuxerOptions = null;
   createdFrames = [];
   videoEncoded = 0;
   audioEncoded = 0;
@@ -288,6 +327,7 @@ async function run(opts: {
   firstAudioSamples = [];
   audioPhase = "probe";
   lastVideoConfig = null;
+  lastAudioConfig = null;
   onVideoEncode = null;
 
   const controller = new AbortController();
@@ -331,6 +371,8 @@ async function run(opts: {
     bufferReleased: lastTarget !== null && lastTarget.buffer === null,
     blobSize: blob.size,
     videoConfig: lastVideoConfig,
+    audioConfig: lastAudioConfig,
+    muxerOptions: lastMuxerOptions,
   };
 }
 
@@ -379,6 +421,32 @@ await check("landscape keeps the full track duration", async () => {
   strictEqual(r.frames, 200 * 30);
 });
 
+console.log("\ncodec / container standard");
+
+await check("video is H.264 High L4.0 and muxed as AVC (no VP9/AV1)", async () => {
+  const r = await run({ formatId: "portrait", duration: 5, audioSeconds: 5 });
+  strictEqual(r.videoConfig?.["codec"], "avc1.640028");
+  deepStrictEqual(r.videoConfig?.["avc"], { format: "avc" });
+  const video = r.muxerOptions?.["video"] as { codec?: string } | undefined;
+  strictEqual(video?.codec, "avc");
+});
+
+await check("audio is AAC-LC and muxed as AAC (no Opus)", async () => {
+  const r = await run({ formatId: "portrait", duration: 5, audioSeconds: 5 });
+  strictEqual(r.audioConfig?.["codec"], "mp4a.40.2");
+  const audio = r.muxerOptions?.["audio"] as { codec?: string } | undefined;
+  strictEqual(audio?.codec, "aac");
+});
+
+await check("container uses fast start metadata", async () => {
+  const r = await run({ formatId: "portrait", duration: 5, audioSeconds: 5 });
+  const fastStart = r.muxerOptions?.["fastStart"];
+  ok(
+    fastStart !== null && typeof fastStart === "object",
+    "fastStart reserves metadata space",
+  );
+});
+
 console.log("\naudio");
 
 await check("audio is truncated to the video duration and starts at t=0", async () => {
@@ -391,6 +459,19 @@ await check("audio is truncated to the video duration and starts at t=0", async 
   );
   // 15s at 44.1kHz in 4096-frame chunks = ceil(661500/4096) = 162 chunks.
   strictEqual(r.audioEncoded, Math.ceil((15 * 44_100) / 4096));
+});
+
+await check("audio is resampled to 48 kHz when possible", async () => {
+  (globalThis as unknown as Record<string, unknown>).OfflineAudioContext =
+    StubOfflineAudioContext;
+  try {
+    const r = await run({ formatId: "portrait", duration: 2, audioSeconds: 3 });
+    strictEqual(r.audioConfig?.["sampleRate"], 48_000);
+    // 2s at 48kHz in 4096-frame chunks = ceil(96000/4096) = 24 chunks.
+    strictEqual(r.audioEncoded, Math.ceil((2 * 48_000) / 4096));
+  } finally {
+    delete (globalThis as unknown as Record<string, unknown>).OfflineAudioContext;
+  }
 });
 
 await check("a short track does not desync the export", async () => {

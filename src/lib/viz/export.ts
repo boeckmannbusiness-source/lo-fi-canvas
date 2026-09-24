@@ -36,23 +36,49 @@ export function isExportSupported(): boolean {
   );
 }
 
-async function pickVideoCodec(width: number, height: number, fps: number) {
-  const candidates: { codec: string; muxer: "avc" | "vp9" | "av1" }[] = [
-    { codec: "avc1.640028", muxer: "avc" },
-    { codec: "avc1.42001f", muxer: "avc" },
-    { codec: "vp09.00.10.08", muxer: "vp9" },
-    { codec: "av01.0.08M.08", muxer: "av1" },
-  ];
-  for (const c of candidates) {
+/**
+ * Conservative H.264 (AVC) codec strings for a 1080×1920 / 30 fps target.
+ *
+ * Level 4.0 (`0x28`) is the *minimum* level that can carry 1080×1920 @ 30 fps:
+ * 8160 macroblocks per frame (max 8192 at L4.0) at 30 fps = 244,800 MB/s
+ * (max 245,760 at L4.0). The old Baseline L3.1 fallback tops out at 3600 MB /
+ * 108,000 MB/s and cannot represent this frame, so it could never be selected.
+ *
+ * High → Main → Constrained Baseline keeps the current High-profile quality
+ * first, then falls back to progressively more compatible — but still 8-bit
+ * 4:2:0 (yuv420p by definition) — H.264 profiles. `muxer` is always `avc`, so
+ * an `.mp4` can never end up holding VP9/AV1 video.
+ */
+const VIDEO_CODECS = [
+  "avc1.640028", // H.264 High, Level 4.0
+  "avc1.4D4028", // H.264 Main, Level 4.0
+  "avc1.42E028", // H.264 Constrained Baseline, Level 4.0
+] as const;
+
+/** AAC-LC: the only audio codec platform ingest reliably accepts. No Opus. */
+const AUDIO_CODEC = "mp4a.40.2";
+/** Platform ingest expects 48 kHz; everything is resampled to this target. */
+const AUDIO_SAMPLE_RATE = 48_000;
+const AUDIO_BITRATE = 192_000;
+const AUDIO_CHUNK_FRAMES = 4096;
+
+async function pickVideoCodec(
+  width: number,
+  height: number,
+  fps: number,
+  bitrate: number,
+): Promise<{ codec: string; muxer: "avc" } | null> {
+  for (const codec of VIDEO_CODECS) {
     try {
       const res = await VideoEncoder.isConfigSupported({
-        codec: c.codec,
+        codec,
         width,
         height,
-        bitrate: 8_000_000,
+        bitrate,
         framerate: fps,
+        avc: { format: "avc" },
       });
-      if (res.supported) return c;
+      if (res.supported) return { codec, muxer: "avc" };
     } catch {
       /* try next */
     }
@@ -60,49 +86,82 @@ async function pickVideoCodec(width: number, height: number, fps: number) {
   return null;
 }
 
-async function pickAudioCodec(sampleRate: number, channels: number) {
-  const candidates: { codec: string; muxer: "aac" | "opus" }[] = [
-    { codec: "mp4a.40.2", muxer: "aac" },
-    { codec: "opus", muxer: "opus" },
-  ];
-  for (const c of candidates) {
-    // isConfigSupported is optimistic in some browsers, so do a real probe.
-    try {
-      let failed = false;
-      let chunks = 0;
-      const enc = new AudioEncoder({
-        output: () => {
-          chunks++;
-        },
-        error: () => {
-          failed = true;
-        },
-      });
-      enc.configure({
-        codec: c.codec,
-        sampleRate,
-        numberOfChannels: channels,
-        bitrate: 192_000,
-      });
-      const n = 1024;
-      const probe = new AudioData({
-        format: "f32-planar",
-        sampleRate,
-        numberOfFrames: n,
-        numberOfChannels: channels,
-        timestamp: 0,
-        data: new Float32Array(n * channels),
-      });
-      enc.encode(probe);
-      probe.close();
-      await enc.flush();
-      enc.close();
-      if (!failed && chunks > 0) return c;
-    } catch {
-      /* try next */
+async function pickAudioCodec(
+  sampleRate: number,
+  channels: number,
+): Promise<{ codec: string; muxer: "aac" } | null> {
+  // isConfigSupported is optimistic in some browsers, so do a real probe.
+  try {
+    let failed = false;
+    let chunks = 0;
+    const enc = new AudioEncoder({
+      output: () => {
+        chunks++;
+      },
+      error: () => {
+        failed = true;
+      },
+    });
+    enc.configure({
+      codec: AUDIO_CODEC,
+      sampleRate,
+      numberOfChannels: channels,
+      bitrate: AUDIO_BITRATE,
+    });
+    // A 1024-frame silent probe makes Chrome's AAC encoder fail spuriously
+    // ("Flushing error"), which used to force the Opus fallback. Feed a real
+    // signal long enough to cover several AAC frames instead.
+    const n = 8192;
+    const samples = new Float32Array(n * channels);
+    for (let i = 0; i < n; i++) {
+      const value = Math.sin((2 * Math.PI * 440 * i) / sampleRate) * 0.2;
+      for (let c = 0; c < channels; c++) samples[c * n + i] = value;
     }
+    const probe = new AudioData({
+      format: "f32-planar",
+      sampleRate,
+      numberOfFrames: n,
+      numberOfChannels: channels,
+      timestamp: 0,
+      data: samples,
+    });
+    enc.encode(probe);
+    probe.close();
+    await enc.flush();
+    enc.close();
+    if (!failed && chunks > 0) return { codec: AUDIO_CODEC, muxer: "aac" };
+  } catch {
+    /* unsupported */
   }
   return null;
+}
+
+/**
+ * Resample decoded audio to the platform target rate (48 kHz) using the
+ * browser's own OfflineAudioContext. Falls back to the source rate when the
+ * API (or a headless test harness) is unavailable so the export still runs.
+ */
+async function resampleAudio(
+  buffer: AudioBuffer,
+  targetRate: number,
+): Promise<AudioBuffer> {
+  if (buffer.sampleRate === targetRate) return buffer;
+  if (typeof OfflineAudioContext === "undefined") return buffer;
+  try {
+    const channels = Math.min(2, buffer.numberOfChannels);
+    const length = Math.max(
+      1,
+      Math.round((buffer.length / buffer.sampleRate) * targetRate),
+    );
+    const ctx = new OfflineAudioContext(channels, length, targetRate);
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    source.connect(ctx.destination);
+    source.start(0);
+    return await ctx.startRendering();
+  } catch {
+    return buffer;
+  }
 }
 
 /** Wait until an encoder's queue drains below `limit`, using dequeue events. */
@@ -147,29 +206,53 @@ export async function renderVideo(opts: ExportOptions): Promise<Blob> {
   const bitrate = opts.bitrate ?? 8_000_000;
   const totalFrames = Math.max(1, Math.round(duration * fps));
 
-  const videoCodec = await pickVideoCodec(width, height, fps);
-  if (!videoCodec) throw new Error("No supported video encoder in this browser.");
+  const videoCodec = await pickVideoCodec(width, height, fps, bitrate);
+  if (!videoCodec) {
+    throw new Error(
+      "This browser cannot encode H.264 video, which is required for a TikTok-compatible MP4. Use the latest Chrome or Edge on desktop.",
+    );
+  }
 
-  const channels = opts.audioBuffer
-    ? Math.min(2, opts.audioBuffer.numberOfChannels)
-    : 0;
-  const audioCodec = opts.audioBuffer
-    ? await pickAudioCodec(opts.audioBuffer.sampleRate, channels)
+  const audioBuffer = opts.audioBuffer
+    ? await resampleAudio(opts.audioBuffer, AUDIO_SAMPLE_RATE)
     : null;
-  const hasAudio = !!opts.audioBuffer && !!audioCodec;
+  const channels = audioBuffer ? Math.min(2, audioBuffer.numberOfChannels) : 0;
+  const audioCodec = audioBuffer
+    ? await pickAudioCodec(audioBuffer.sampleRate, channels)
+    : null;
+  if (audioBuffer && !audioCodec) {
+    throw new Error(
+      "This browser cannot encode AAC audio, which is required for a TikTok-compatible MP4. Use the latest Chrome or Edge on desktop.",
+    );
+  }
+  const hasAudio = !!audioBuffer && !!audioCodec;
 
   const target = new ArrayBufferTarget();
   const muxer = new Muxer({
     target,
-    // `in-memory` fast-start buffers every sample a second time before
-    // rewriting the file; progressive muxing halves peak memory.
-    fastStart: false,
+    // Reserve space for the metadata up front so the `moov` atom lands before
+    // `mdat` ("fast start") without the `in-memory` mode that buffers every
+    // sample a second time. Overestimating is safe: the muxer pads the spare
+    // bytes with a `free` atom. Video emits exactly one chunk per frame, while
+    // AAC emits roughly one chunk per 1024 samples, so bound each track
+    // separately (with a little margin) instead of guessing from frames.
+    fastStart: {
+      expectedVideoChunks: totalFrames,
+      expectedAudioChunks: hasAudio
+        ? Math.ceil(
+            Math.min(
+              audioBuffer!.length,
+              Math.ceil(duration * audioBuffer!.sampleRate),
+            ) / 960,
+          ) + 8
+        : 0,
+    },
     video: { codec: videoCodec.muxer, width, height },
     ...(hasAudio
       ? {
           audio: {
             codec: audioCodec!.muxer,
-            sampleRate: opts.audioBuffer!.sampleRate,
+            sampleRate: audioBuffer!.sampleRate,
             numberOfChannels: channels,
           },
         }
@@ -196,7 +279,7 @@ export async function renderVideo(opts: ExportOptions): Promise<Blob> {
   // probed, so a fallback to Opus is honoured instead of hard-coding AAC.
   if (hasAudio) {
     opts.onProgress?.(0.01, "Encoding audio");
-    await encodeAudio(muxer, opts.audioBuffer!, audioCodec!.codec, duration, signal);
+    await encodeAudio(muxer, audioBuffer!, audioCodec!.codec, duration, signal);
   }
 
   const canvas = new OffscreenCanvas(width, height);
@@ -287,11 +370,11 @@ async function encodeAudio(
     codec,
     sampleRate,
     numberOfChannels: channels,
-    bitrate: 192_000,
+    bitrate: AUDIO_BITRATE,
   });
 
   const total = Math.min(buffer.length, Math.ceil(duration * sampleRate));
-  const chunkFrames = 4096;
+  const chunkFrames = AUDIO_CHUNK_FRAMES;
   const scratch = new Float32Array(chunkFrames * channels);
   const chans: Float32Array[] = [];
   for (let c = 0; c < channels; c++) chans.push(buffer.getChannelData(c));

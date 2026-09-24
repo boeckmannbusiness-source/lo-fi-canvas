@@ -386,10 +386,17 @@ export function Studio() {
         setPortraitExport(null);
       }
     } catch (e) {
-      if ((e as Error)?.name === "AbortError") toast("Export cancelled.");
+      const error = e as Error;
+      if (error?.name === "AbortError") toast("Export cancelled.");
       else {
         console.error(e);
-        toast.error("Export failed. Try a shorter track or reload the page.");
+        // Codec-compatibility failures carry an actionable message; surface it
+        // instead of the generic fallback so the user knows to switch browsers.
+        if (error?.message?.includes("TikTok-compatible MP4")) {
+          toast.error(error.message);
+        } else {
+          toast.error("Export failed. Try a shorter track or reload the page.");
+        }
       }
     } finally {
       setExporting(false);
