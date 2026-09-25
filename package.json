@@ -12,6 +12,8 @@
     "test": "node --experimental-strip-types scripts/identity-check.ts",
     "test:render": "bun scripts/render-smoke.ts",
     "test:export": "bun scripts/export-check.ts",
+    "test:converter": "bun scripts/converter-check.ts",
+    "test:converter:e2e": "node scripts/real-convert-check.mjs",
     "test:presets": "bun scripts/presets-check.ts",
     "test:cloudinary": "bun scripts/cloudinary-check.ts",
     "format": "prettier --write ."

@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Berlin B Tapes — video converter harness</title>
+  </head>
+  <body>
+    <p>Converting real source videos to TikTok-compatible MP4…</p>
+    <script>
+      // Runs even if the module graph fails to load, so the runner can tell
+      // "page never loaded" apart from "conversion threw".
+      fetch("/boot", { method: "POST", body: location.href });
+      window.addEventListener("error", (e) => {
+        const msg = e.message || (e.error && e.error.message) || "unknown error";
+        fetch("/error", { method: "POST", body: "window.error: " + msg });
+      });
+      window.addEventListener("unhandledrejection", (e) => {
+        const r = e.reason;
+        fetch("/error", { method: "POST", body: "unhandledrejection: " + ((r && r.stack) || r) });
+      });
+    </script>
+    <script
+      type="module"
+      src="/scripts/real-convert/harness.ts"
+      onerror="fetch('/error',{method:'POST',body:'module script failed to load'})"
+    ></script>
+  </body>
+</html>

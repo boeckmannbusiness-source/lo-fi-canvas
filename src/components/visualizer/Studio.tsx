@@ -34,6 +34,7 @@ import {
 } from "@/lib/cloudinary";
 import { PreviewCanvas } from "./PreviewCanvas";
 import { SettingsPanel } from "./SettingsPanel";
+import { TikTokConverter } from "./TikTokConverter";
 import { UserPresets } from "./UserPresets";
 import type { PresetSettings } from "@/lib/presets";
 import { analyzeBuffer, type AudioAnalysis } from "@/lib/viz/analysis";
@@ -478,6 +479,7 @@ export function Studio() {
           <span className="hidden font-mono text-[10px] text-muted-foreground sm:block">
             {format.short} · {format.fps} fps · {estFrames} frames
           </span>
+          <TikTokConverter />
           <Button size="sm" className="h-8 gap-1.5 text-xs" onClick={exportVideo} disabled={exporting}>
             <Download className="size-3.5" /> Export video
           </Button>
