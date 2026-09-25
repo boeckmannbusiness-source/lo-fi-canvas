@@ -11,8 +11,6 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import {
-  Check,
-  Copy,
   Disc3,
   Download,
   Film,
@@ -22,17 +20,13 @@ import {
   Pause,
   Play,
   RotateCcw,
-  Smartphone,
   Volume2,
   VolumeX,
   X,
 } from "lucide-react";
-import {
-  isMobileDownloadSupported,
-  readCloudinaryConfig,
-  uploadVideoToCloudinary,
-} from "@/lib/cloudinary";
+import { isMobileDownloadSupported } from "@/lib/cloudinary";
 import { PreviewCanvas } from "./PreviewCanvas";
+import { SendToMobile } from "./SendToMobile";
 import { SettingsPanel } from "./SettingsPanel";
 import { TikTokConverter } from "./TikTokConverter";
 import { UserPresets } from "./UserPresets";
@@ -133,10 +127,6 @@ export function Studio() {
     blob: Blob;
     filename: string;
   } | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const [mobileLink, setMobileLink] = useState<string | null>(null);
-  const [uploadError, setUploadError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
 
   // drive the preview clock
   useEffect(() => {
@@ -380,9 +370,6 @@ export function Studio() {
       // reused exactly as generated: no re-render, no re-encode.
       if (isMobileDownloadSupported(format.id)) {
         setPortraitExport({ blob, filename });
-        setMobileLink(null);
-        setUploadError(null);
-        setCopied(false);
       } else {
         setPortraitExport(null);
       }
@@ -415,46 +402,6 @@ export function Studio() {
     a.download = portraitExport.filename;
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 30000);
-  };
-
-  const sendToPhone = async () => {
-    if (!portraitExport || uploading) return;
-    const config = readCloudinaryConfig();
-    if (!config) {
-      setUploadError(
-        "Cloudinary isn't configured. Set VITE_CLOUDINARY_CLOUD_NAME and VITE_CLOUDINARY_UPLOAD_PRESET.",
-      );
-      return;
-    }
-    setUploading(true);
-    setUploadError(null);
-    setMobileLink(null);
-    setCopied(false);
-    try {
-      const result = await uploadVideoToCloudinary(portraitExport.blob, {
-        config,
-        filename: portraitExport.filename,
-      });
-      setMobileLink(result.secureUrl);
-      toast.success("Mobile link ready.");
-    } catch (error) {
-      console.error(error);
-      setUploadError((error as Error)?.message || "Cloudinary upload failed.");
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const copyMobileLink = async () => {
-    if (!mobileLink) return;
-    try {
-      await navigator.clipboard.writeText(mobileLink);
-      setCopied(true);
-      toast.success("Link copied.");
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      toast.error("Couldn't copy automatically — select the link to copy it.");
-    }
   };
 
   const estFrames = useMemo(
@@ -691,39 +638,7 @@ export function Studio() {
                 >
                   <Download className="size-3.5" /> Download
                 </Button>
-                {!mobileLink && (
-                  <Button
-                    size="sm"
-                    className="h-7 gap-1.5 text-xs"
-                    onClick={() => void sendToPhone()}
-                    disabled={uploading}
-                  >
-                    <Smartphone className="size-3.5" />
-                    {uploading ? "Uploading…" : "Send to phone"}
-                  </Button>
-                )}
-                {mobileLink && (
-                  <>
-                    <span className="text-[11px] text-muted-foreground">Mobile link ready</span>
-                    <Button
-                      size="sm"
-                      className="h-7 gap-1.5 text-xs"
-                      onClick={() => void copyMobileLink()}
-                    >
-                      {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
-                      {copied ? "Copied" : "Copy download link"}
-                    </Button>
-                    <a
-                      href={mobileLink}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="max-w-[240px] truncate font-mono text-[10px] text-primary underline"
-                    >
-                      {mobileLink}
-                    </a>
-                  </>
-                )}
-                {uploadError && <span className="text-[10px] text-destructive">{uploadError}</span>}
+                <SendToMobile blob={portraitExport.blob} filename={portraitExport.filename} />
               </div>
             )}
 

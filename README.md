@@ -720,7 +720,9 @@ npm run dev
 Portrait (1080×1920) exports offer a **Send to phone** action that uploads the
 already-generated MP4 to Cloudinary and returns a shareable link. This is the
 only path that leaves the device, it is opt-in, and it only ever uploads the
-exported MP4 — never the source artwork or audio.
+exported MP4 — never the source artwork or audio. The TikTok converter's
+**Send to Mobile** action reuses the same upload and link flow, sending the
+converted MP4 — or, for an already-compatible file, the untouched original.
 
 Configure it with two public Vite env vars (see `.env.example`). The upload uses
 an **unsigned upload preset**, so no API secret is ever shipped to the browser:

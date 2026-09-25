@@ -18,6 +18,8 @@ import {
   type AnalyzeResult,
 } from "@/lib/viz/convert";
 import { audioCodecLabel, videoCodecLabel } from "@/lib/viz/compat";
+import { pickMobileUpload } from "@/lib/send-to-mobile";
+import { SendToMobile } from "./SendToMobile";
 
 const fmtBytes = (n: number) => {
   if (!Number.isFinite(n) || n <= 0) return "0 MB";
@@ -161,6 +163,13 @@ export function TikTokConverter() {
 
   const report = analysis?.report ?? null;
   const alreadyCompatible = report?.compatible ?? false;
+  // The mobile flow reuses the existing Cloudinary upload: it sends the
+  // converted MP4 when present, otherwise the already-compatible original.
+  const mobileSource = pickMobileUpload({
+    converted: result,
+    original: file,
+    alreadyCompatible,
+  });
 
   return (
     <Dialog
@@ -316,18 +325,40 @@ export function TikTokConverter() {
                   >
                     <Download className="size-3.5" /> Download
                   </Button>
+                  {mobileSource && (
+                    <SendToMobile
+                      blob={mobileSource.blob}
+                      filename={mobileSource.filename}
+                      label="Send to Mobile"
+                      uploadingLabel="Uploading to mobile…"
+                      retryLabel="Retry"
+                      buttonClassName="h-8"
+                    />
+                  )}
                   <Button size="sm" variant="ghost" className="h-8 gap-1.5 text-xs" onClick={reset}>
                     Convert another
                   </Button>
                 </>
               ) : alreadyCompatible ? (
-                <Button
-                  size="sm"
-                  className="h-8 gap-1.5 text-xs"
-                  onClick={() => file && downloadBlob(file, file.name)}
-                >
-                  <Download className="size-3.5" /> Download original
-                </Button>
+                <>
+                  <Button
+                    size="sm"
+                    className="h-8 gap-1.5 text-xs"
+                    onClick={() => file && downloadBlob(file, file.name)}
+                  >
+                    <Download className="size-3.5" /> Download original
+                  </Button>
+                  {mobileSource && (
+                    <SendToMobile
+                      blob={mobileSource.blob}
+                      filename={mobileSource.filename}
+                      label="Send to Mobile"
+                      uploadingLabel="Uploading to mobile…"
+                      retryLabel="Retry"
+                      buttonClassName="h-8"
+                    />
+                  )}
+                </>
               ) : (
                 <Button
                   size="sm"

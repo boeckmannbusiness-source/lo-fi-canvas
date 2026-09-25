@@ -27,6 +27,10 @@ export function isMobileDownloadSupported(formatId: ExportFormatId): boolean {
   return formatId === "portrait";
 }
 
+/** Shown when the mobile upload is attempted without Cloudinary configured. */
+export const CLOUDINARY_NOT_CONFIGURED_MESSAGE =
+  "Cloudinary isn't configured. Set VITE_CLOUDINARY_CLOUD_NAME and VITE_CLOUDINARY_UPLOAD_PRESET.";
+
 function clean(value: string | undefined): string {
   return typeof value === "string" ? value.trim() : "";
 }

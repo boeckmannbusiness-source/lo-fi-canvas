@@ -16,6 +16,7 @@
     "test:converter:e2e": "node scripts/real-convert-check.mjs",
     "test:presets": "bun scripts/presets-check.ts",
     "test:cloudinary": "bun scripts/cloudinary-check.ts",
+    "test:mobile": "bun scripts/send-to-mobile-check.ts",
     "format": "prettier --write ."
   },
   "overrides": {
