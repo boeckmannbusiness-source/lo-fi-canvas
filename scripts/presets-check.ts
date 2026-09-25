@@ -15,6 +15,7 @@ import {
   PRESET_VERSION,
   capturePresetSettings,
   deletePreset,
+  isPresetStorageAvailable,
   loadPresets,
   makeStoredPreset,
   parseStoredPresets,
@@ -39,6 +40,34 @@ function fakeStorage(initial?: string): PresetStorage & { raw: Map<string, strin
     setItem: (key: string, value: string) => {
       raw.set(key, value);
     },
+  };
+}
+
+/**
+ * A `window.localStorage` stand-in backed by a persistent `Map`. Handing the
+ * *same* Map to a fresh `window` models a full page reload: the browser keeps
+ * the data, but all in-memory application state is gone.
+ */
+function browserStorage(backing: Map<string, string>) {
+  return {
+    getItem: (key: string) => (backing.has(key) ? backing.get(key)! : null),
+    setItem: (key: string, value: string) => {
+      backing.set(key, value);
+    },
+    removeItem: (key: string) => {
+      backing.delete(key);
+    },
+  };
+}
+
+/**
+ * Install a fake `window.localStorage` so the production `resolvePresetStorage()`
+ * path is exercised. Returns a function that removes the fake window again.
+ */
+function installWindow(backing: Map<string, string>): () => void {
+  (globalThis as { window?: unknown }).window = { localStorage: browserStorage(backing) };
+  return () => {
+    delete (globalThis as { window?: unknown }).window;
   };
 }
 
@@ -339,6 +368,57 @@ check("serialize -> parse is stable across a storage write", () => {
   ok(persistPresets(list, storage));
   deepStrictEqual(parseStoredPresets(serializeStoredPresets(list)), list);
   deepStrictEqual(loadPresets(storage), list);
+});
+
+console.log("\nreload persistence (real resolvePresetStorage path)");
+
+check("a saved preset survives a simulated page reload", () => {
+  const backing = new Map<string, string>();
+
+  // Session 1: app boots, the user saves a preset through the public API.
+  let uninstall = installWindow(backing);
+  const captured = capturePresetSettings(colorfulSettings(), "portrait", 45);
+  const saved = savePreset("Reload survivor", captured);
+  ok(saved, "save resolved the browser storage on its own");
+  const rawAfterSave = backing.get(PRESETS_STORAGE_KEY) ?? "";
+  ok(rawAfterSave.includes("Reload survivor"), "raw localStorage holds the preset");
+  uninstall();
+
+  // Reload: fresh window over the same persisted storage, no app state left.
+  uninstall = installWindow(backing);
+
+  // Booting must only read. If an initializer ever persisted an empty list it
+  // would clobber this raw value and the assertion below would fail.
+  strictEqual(isPresetStorageAvailable(), true);
+  const loaded = loadPresets();
+  strictEqual(backing.get(PRESETS_STORAGE_KEY), rawAfterSave, "boot did not rewrite storage");
+  strictEqual(loaded.length, 1, "the preset is listed after the reload");
+  strictEqual(loaded[0]!.name, "Reload survivor");
+  deepStrictEqual(loaded[0]!.settings, captured);
+  uninstall();
+});
+
+check("presets saved across reloads accumulate instead of replacing", () => {
+  const backing = new Map<string, string>();
+
+  // Session 1.
+  let uninstall = installWindow(backing);
+  savePreset("Before reload", capturePresetSettings(defaultSettings(), "landscape", 30));
+  uninstall();
+
+  // Session 2 boots from persisted storage, then saves a second preset.
+  uninstall = installWindow(backing);
+  strictEqual(loadPresets().length, 1, "the first preset is still there at boot");
+  savePreset("After reload", capturePresetSettings(colorfulSettings(), "portrait", 45));
+  uninstall();
+
+  // Session 3 sees both, in insertion order.
+  uninstall = installWindow(backing);
+  const loaded = loadPresets();
+  strictEqual(loaded.length, 2);
+  strictEqual(loaded[0]!.name, "Before reload");
+  strictEqual(loaded[1]!.name, "After reload");
+  uninstall();
 });
 
 console.log(`\n${passed} passed, ${failed} failed\n`);
