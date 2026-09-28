@@ -23,6 +23,7 @@ import {
   Volume2,
   VolumeX,
   X,
+  Youtube,
 } from "lucide-react";
 import { isMobileDownloadSupported } from "@/lib/cloudinary";
 import { PreviewCanvas } from "./PreviewCanvas";
@@ -30,6 +31,7 @@ import { SendToMobile } from "./SendToMobile";
 import { SettingsPanel } from "./SettingsPanel";
 import { TikTokConverter } from "./TikTokConverter";
 import { UserPresets } from "./UserPresets";
+import { YouTubeProductionPanel } from "./YouTubeProduction";
 import type { PresetSettings } from "@/lib/presets";
 import { analyzeBuffer, type AudioAnalysis } from "@/lib/viz/analysis";
 import { isExportSupported, renderVideo } from "@/lib/viz/export";
@@ -83,6 +85,7 @@ export function Studio() {
   const [customDuration, setCustomDuration] = useState("30");
   const [customMode, setCustomMode] = useState(false);
   const [showSafeAreas, setShowSafeAreas] = useState(false);
+  const [youtubeOpen, setYoutubeOpen] = useState(false);
   const format = EXPORT_FORMATS[formatId];
 
   // Longest duration the portrait format can export for the loaded track:
@@ -426,6 +429,16 @@ export function Studio() {
           <span className="hidden font-mono text-[10px] text-muted-foreground sm:block">
             {format.short} · {format.fps} fps · {estFrames} frames
           </span>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 gap-1.5 text-xs"
+            onClick={() => setYoutubeOpen(true)}
+            title="Configure YouTube metadata, thumbnail, preflight and 16:9 export"
+          >
+            <Youtube className="size-3.5" />
+            YouTube
+          </Button>
           <TikTokConverter />
           <Button size="sm" className="h-8 gap-1.5 text-xs" onClick={exportVideo} disabled={exporting}>
             <Download className="size-3.5" /> Export video
@@ -745,6 +758,17 @@ export function Studio() {
           </div>
         </div>
       )}
+
+      <YouTubeProductionPanel
+        open={youtubeOpen}
+        onOpenChange={setYoutubeOpen}
+        settings={settings}
+        image={image}
+        analysis={analysis}
+        audioBuffer={audioBufferRef.current}
+        duration={duration}
+        audioName={audioName}
+      />
     </div>
   );
 }

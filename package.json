@@ -17,6 +17,8 @@
     "test:presets": "bun scripts/presets-check.ts",
     "test:cloudinary": "bun scripts/cloudinary-check.ts",
     "test:mobile": "bun scripts/send-to-mobile-check.ts",
+    "test:youtube": "bun scripts/youtube-check.ts",
+    "test:all": "node --experimental-strip-types scripts/identity-check.ts && bun scripts/render-smoke.ts && bun scripts/export-check.ts && bun scripts/converter-check.ts && bun scripts/presets-check.ts && bun scripts/cloudinary-check.ts && bun scripts/send-to-mobile-check.ts && bun scripts/youtube-check.ts",
     "format": "prettier --write ."
   },
   "overrides": {

@@ -2,7 +2,8 @@ import { ArrayBufferTarget, Muxer } from "mp4-muxer";
 import { frameAt, type AudioAnalysis } from "./analysis";
 import { renderScene } from "./scene";
 import { clampSeconds, safeAreaFor } from "./format";
-import type { LayoutMode, SafeArea, Settings } from "./types";
+import { avcCodecStrings } from "./compat";
+import type { LayoutMode, LocationTagConfig, SafeArea, Settings } from "./types";
 
 export interface ExportOptions {
   width: number;
@@ -23,6 +24,8 @@ export interface ExportOptions {
   logoHeight: number;
   analysis: AudioAnalysis | null;
   audioBuffer: AudioBuffer | null;
+  /** Optional opening location tag, supplied by the YouTube production flow. */
+  locationTag?: LocationTagConfig | null;
   signal?: AbortSignal;
   onProgress?: (p: number, stage: string) => void;
 }
@@ -36,25 +39,6 @@ export function isExportSupported(): boolean {
   );
 }
 
-/**
- * Conservative H.264 (AVC) codec strings for a 1080×1920 / 30 fps target.
- *
- * Level 4.0 (`0x28`) is the *minimum* level that can carry 1080×1920 @ 30 fps:
- * 8160 macroblocks per frame (max 8192 at L4.0) at 30 fps = 244,800 MB/s
- * (max 245,760 at L4.0). The old Baseline L3.1 fallback tops out at 3600 MB /
- * 108,000 MB/s and cannot represent this frame, so it could never be selected.
- *
- * High → Main → Constrained Baseline keeps the current High-profile quality
- * first, then falls back to progressively more compatible — but still 8-bit
- * 4:2:0 (yuv420p by definition) — H.264 profiles. `muxer` is always `avc`, so
- * an `.mp4` can never end up holding VP9/AV1 video.
- */
-const VIDEO_CODECS = [
-  "avc1.640028", // H.264 High, Level 4.0
-  "avc1.4D4028", // H.264 Main, Level 4.0
-  "avc1.42E028", // H.264 Constrained Baseline, Level 4.0
-] as const;
-
 /** AAC-LC: the only audio codec platform ingest reliably accepts. No Opus. */
 const AUDIO_CODEC = "mp4a.40.2";
 /** Platform ingest expects 48 kHz; everything is resampled to this target. */
@@ -62,13 +46,24 @@ const AUDIO_SAMPLE_RATE = 48_000;
 const AUDIO_BITRATE = 192_000;
 const AUDIO_CHUNK_FRAMES = 4096;
 
+/**
+ * Conservative H.264 (AVC) codec strings for the requested target.
+ *
+ * The profile/level pair is derived from the actual width × height × fps via
+ * the shared `avcCodecStrings` helper, so the level always matches the frame
+ * (e.g. 1080p30 → High L4.0, 1080p60 → High L4.2) instead of assuming a single
+ * 1080×1920 @ 30 fps target. High → Main → Constrained Baseline keeps quality
+ * first, then falls back to progressively more compatible — but still 8-bit
+ * 4:2:0 (yuv420p by definition) — profiles. `muxer` is always `avc`, so an
+ * `.mp4` can never end up holding VP9/AV1 video.
+ */
 async function pickVideoCodec(
   width: number,
   height: number,
   fps: number,
   bitrate: number,
 ): Promise<{ codec: string; muxer: "avc" } | null> {
-  for (const codec of VIDEO_CODECS) {
+  for (const codec of avcCodecStrings(width, height, fps)) {
     try {
       const res = await VideoEncoder.isConfigSupported({
         codec,
@@ -302,6 +297,7 @@ export async function renderVideo(opts: ExportOptions): Promise<Blob> {
     logo: opts.logo,
     logoWidth: opts.logoWidth,
     logoHeight: opts.logoHeight,
+    locationTag: opts.locationTag ?? null,
     scale: Math.min(width, height) / 1080,
   };
 

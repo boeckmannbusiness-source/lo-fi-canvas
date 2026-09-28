@@ -159,7 +159,13 @@ const baseSettings = (): Settings => {
   return s;
 };
 
-function render(width: number, height: number, time: number, settings: Settings): Call[] {
+function render(
+  width: number,
+  height: number,
+  time: number,
+  settings: Settings,
+  locationTag: RenderContext["locationTag"] = null,
+): Call[] {
   const log: Call[] = [];
   const rc: RenderContext = {
     ctx: makeCtx(log),
@@ -188,6 +194,7 @@ function render(width: number, height: number, time: number, settings: Settings)
     logo: null,
     logoWidth: 0,
     logoHeight: 0,
+    locationTag,
     scale: Math.min(width, height) / 1080,
   };
   renderScene(rc);
@@ -971,6 +978,44 @@ check("portrait honours explicit custom vinyl coordinates", () => {
   ok(translate, "vinyl translated");
   strictEqual(Number(translate![1]), 0.3 * 1080);
   strictEqual(Number(translate![2]), 0.7 * 1920);
+});
+
+console.log("\nlocation tag (opening seconds)");
+
+const TAG = {
+  enabled: true,
+  episode: "B-005",
+  location: "CHECKPOINT CHARLIE",
+  city: "BERLIN",
+  startTime: 0,
+  duration: 7,
+};
+
+const drawnText = (log: Call[]) =>
+  log
+    .filter((c) => c[0] === "fillText")
+    .map((c) => String(c[1]))
+    .join("");
+
+check("the location tag is absent without composition data", () => {
+  const log = render(1920, 1080, 1, baseSettings());
+  ok(!drawnText(log).includes("CHECKPOINT"), "no location tag drawn");
+});
+
+check("the location tag prints episode, location and city in the opening", () => {
+  const log = render(1920, 1080, 1.5, baseSettings(), TAG);
+  const text = drawnText(log);
+  ok(text.includes("B-005"), "episode drawn");
+  ok(text.includes("CHECKPOINT CHARLIE"), "location drawn");
+  ok(text.includes("BERLIN"), "city drawn");
+});
+
+check("the location tag is deterministic and fades out", () => {
+  const a = render(1920, 1080, 1.5, baseSettings(), TAG);
+  const b = render(1920, 1080, 1.5, baseSettings(), TAG);
+  deepStrictEqual(a, b);
+  const late = render(1920, 1080, 7.2, baseSettings(), TAG);
+  ok(!drawnText(late).includes("CHECKPOINT"), "gone after its window");
 });
 
 console.log(`\n${passed} passed, ${failed} failed\n`);

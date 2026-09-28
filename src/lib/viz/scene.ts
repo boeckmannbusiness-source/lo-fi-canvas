@@ -11,6 +11,7 @@ import { drawTape } from "./layers/tape";
 import { drawVinyl } from "./layers/vinyl";
 import { drawFrameVisualizer, drawVisualizer } from "./layers/visualizer";
 import { drawCtaScene } from "./layers/cta";
+import { drawLocationTag } from "./layers/locationTag";
 import { ctaState } from "./identity";
 import type { RenderContext } from "./types";
 
@@ -57,13 +58,18 @@ export function renderNormalScene(r: RenderContext) {
  * Scene dispatcher shared by preview and export.
  *
  * Extends the existing layer pipeline rather than adding a second renderer: the
- * normal artwork-led scene always renders, and a deterministic CTA timeline
- * composites the "LIKE & SUBSCRIBE" overlay on top of it while it is active.
- * The overlay never replaces the artwork, so a single renderer serves both
- * preview and export.
+ * normal artwork-led scene always renders, an optional location tag prints over
+ * the opening seconds, and a deterministic CTA timeline composites the
+ * "LIKE & SUBSCRIBE" overlay while it is active. Neither overlay replaces the
+ * artwork, so a single renderer serves both preview and export.
+ *
+ * The location tag is handled here (not as a permanent entry in `layers`) so it
+ * only ever runs when composition data supplies it; the canonical layer order
+ * and the locked landscape fixture stay exactly as they were.
  */
 export function renderScene(r: RenderContext) {
   const cta = ctaState(r.settings.cta, r.time);
   renderNormalScene(r);
+  if (r.locationTag?.enabled) drawLocationTag(r);
   if (cta.active) drawCtaScene(r, cta);
 }

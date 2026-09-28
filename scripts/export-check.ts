@@ -16,6 +16,7 @@
 import { mock } from "bun:test";
 import { deepStrictEqual, ok, strictEqual } from "node:assert/strict";
 import { CONTENT_SAFE_AREAS, EXPORT_FORMATS } from "../src/lib/viz/format";
+import { YOUTUBE_EXPORT } from "../src/lib/youtube/export-profile";
 import { defaultSettings, type RenderContext } from "../src/lib/viz/types";
 
 /* ── Mock mp4-muxer (must run before export.ts is imported) ──────────────── */
@@ -310,12 +311,12 @@ interface RunResult {
 }
 
 async function run(opts: {
-  formatId: "landscape" | "portrait";
+  formatId: "landscape" | "portrait" | "youtube";
   duration: number;
   audioSeconds?: number;
   abortAfter?: number;
 }): Promise<RunResult> {
-  const format = EXPORT_FORMATS[opts.formatId];
+  const format = opts.formatId === "youtube" ? YOUTUBE_EXPORT : EXPORT_FORMATS[opts.formatId];
   muxerVideoChunks = 0;
   muxerAudioChunks = 0;
   lastTarget = null;
@@ -510,6 +511,32 @@ console.log("\nparity");
 await check("preview and export share the same safe area source", () => {
   deepStrictEqual(EXPORT_FORMATS.portrait.safe, CONTENT_SAFE_AREAS.portrait);
   deepStrictEqual(EXPORT_FORMATS.landscape.safe, CONTENT_SAFE_AREAS.landscape);
+});
+
+console.log("\nyoutube export profile (16:9 · 1080p · 60 fps)");
+
+await check("youtube 10s encodes 600 frames at 1920x1080/60", async () => {
+  const r = await run({ formatId: "youtube", duration: 10 });
+  strictEqual(r.frames, 600);
+  strictEqual(r.videoConfig?.["width"], 1920);
+  strictEqual(r.videoConfig?.["height"], 1080);
+  strictEqual(r.videoConfig?.["framerate"], 60);
+  strictEqual(r.videoConfig?.["bitrate"], YOUTUBE_EXPORT.bitrate);
+});
+
+await check("youtube 1080p60 selects H.264 High Level 4.2", async () => {
+  const r = await run({ formatId: "youtube", duration: 5 });
+  strictEqual(r.videoConfig?.["codec"], "avc1.64002A");
+});
+
+await check("youtube export keeps AAC audio at 48 kHz", async () => {
+  const r = await run({ formatId: "youtube", duration: 3, audioSeconds: 3 });
+  strictEqual(r.audioConfig?.["codec"], "mp4a.40.2");
+});
+
+await check("youtube export still closes every VideoFrame", async () => {
+  const r = await run({ formatId: "youtube", duration: 2 });
+  strictEqual(r.videoFramesClosed, r.videoFramesCreated);
 });
 
 console.log(`\n${passed} passed, ${failed} failed\n`);

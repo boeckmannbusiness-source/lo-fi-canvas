@@ -426,6 +426,61 @@ export function ctaState(cta: CtaLike, time: number): CtaState {
   };
 }
 
+/* ── Location tag (opening seconds) ──────────────────────────────────────── */
+
+export interface LocationTagLayout {
+  x: number;
+  y: number;
+  content: Rect;
+  portrait: boolean;
+}
+
+/**
+ * Anchor for the subtle opening location tag: bottom-left of the frame
+ * opening (or safe margin), with padding keyed off the opening size. `y` is the
+ * baseline anchor the block grows upward from.
+ */
+export function locationTagLayout(
+  frame: FrameLike,
+  width: number,
+  height: number,
+): LocationTagLayout {
+  const content = contentRect(frame, width, height);
+  const portrait = height > width;
+  const pad = Math.min(content.width, content.height) * (portrait ? 0.09 : 0.07);
+  return {
+    x: content.x + pad,
+    y: content.y + content.height - pad,
+    content,
+    portrait,
+  };
+}
+
+export interface LocationTagState {
+  active: boolean;
+  alpha: number;
+}
+
+/**
+ * Deterministic visibility/opacity for the location tag. Pure `time` in, state
+ * out — identical in preview and export, and it never accumulates.
+ */
+export function locationTagState(
+  tag: { enabled: boolean; startTime: number; duration: number },
+  time: number,
+): LocationTagState {
+  if (!tag.enabled) return { active: false, alpha: 0 };
+  const duration = Math.max(0.5, tag.duration);
+  const local = time - tag.startTime;
+  if (!Number.isFinite(local) || local < 0 || local >= duration) {
+    return { active: false, alpha: 0 };
+  }
+  const fadeIn = clamp01(local / 0.6);
+  const fadeOut = clamp01((duration - local) / 0.8);
+  const alpha = Math.min(1, fadeIn, fadeOut);
+  return { active: alpha > 0.001, alpha };
+}
+
 /* ── Shared math / colour helpers ────────────────────────────────────────── */
 
 export function clamp01(value: number): number {

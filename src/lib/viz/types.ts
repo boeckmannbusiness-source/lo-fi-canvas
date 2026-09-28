@@ -281,6 +281,26 @@ export const SILENT_FRAME: AudioFrame = {
   peakRight: 0,
 };
 
+/**
+ * Optional, deterministic "location tag" printed inside the artwork opening
+ * for the opening seconds of the video.
+ *
+ * This is composition data, not persisted `Settings`: the YouTube production
+ * metadata remains the single source of truth and is passed in at render time.
+ * Omitted / disabled it renders nothing, so the normal visualizer scene and
+ * the existing export fixtures are untouched.
+ */
+export interface LocationTagConfig {
+  enabled: boolean;
+  episode: string;
+  location: string;
+  city: string;
+  /** seconds into the timeline */
+  startTime: number;
+  /** visible duration in seconds */
+  duration: number;
+}
+
 /** Composition mode of the target canvas. */
 export type LayoutMode = "landscape" | "portrait";
 
@@ -310,6 +330,11 @@ export interface RenderContext {
   logo: CanvasImageSource | null;
   logoWidth: number;
   logoHeight: number;
+  /**
+   * Optional opening location tag. Absent for the normal visualizer preview and
+   * export; only the YouTube export supplies it from the production metadata.
+   */
+  locationTag?: LocationTagConfig | null;
   /** hairline scale factor: short canvas edge / 1080 (1.0 at 1920×1080) */
   scale: number;
 }
